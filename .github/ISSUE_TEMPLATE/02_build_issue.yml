@@ -1,0 +1,108 @@
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Build Issue
+description: Report a failure when building Bolt (Conan/CMake/Ninja)
+title: "[Build] "
+labels: ["build", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **Tip:** Before reporting, please try:
+        > 1. Clean your build directory (`rm -rf build/`)
+        > 2. Clean your Conan cache if necessary (`conan remove "*" -f` or specific packages)
+        > 3. Ensure you have the latest code (`git pull`) and submodules.
+
+  - type: textarea
+    attributes:
+      label: Summary of the Build Issue
+      description: A clear description of where the build fails (e.g., during dependency install, configuration, or compilation).
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Build Command
+      description: The exact commands you ran.
+      placeholder: |
+        conan install . --output-folder=build --build=missing
+        cd build
+        cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
+        ninja
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Build Environment (Crucial)
+      description: Please provide versions of your tools(you can use `make system_info` to get this info).
+      value: |
+        - **OS**: (e.g. Ubuntu 22.04, macOS 14)
+        - **Compiler**: (e.g. GCC 11, Clang 15)
+        - **Conan Version**: (Output of `conan --version`)
+        - **CMake Version**: (Output of `cmake --version`)
+        - **Ninja Version**: (Output of `ninja --version`)
+        - **Python Version**: (Required by Conan)
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Conan Profile / Settings (Optional but Recommended)
+      description: If you are using a custom conan profile or specific settings, please paste them here.
+      placeholder: |
+        [settings]
+        os=Linux
+        arch=x86_64
+        compiler=gcc
+        compiler.version=11
+        compiler.libcxx=libstdc++11
+        build_type=Release
+      render: toml
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Error Log / Output
+      description: |
+        Please paste the **full** error output here.
+        Use a `<details>` block for long logs or upload a `.txt` file / GitHub Gist.
+      placeholder: |
+        <details>
+        <summary>Click to expand full log</summary>
+
+        ```text
+        -- The CXX compiler identification is GNU 11.4.0
+        ...
+        [ 98%] Building CXX object ...
+        error: ...
+        ```
+        </details>
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the build issue here.
+    validations:
+      required: false

@@ -1,0 +1,119 @@
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Compatibility Report (Behavior Diff)
+description: Report inconsistent behavior between Bolt and reference engines (Spark/Presto/Flink).
+title: "[Compatibility] "
+labels: ["compatibility", "results mismatch", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > Use this template to report calculation differences (e.g., `1 + 1 = 2` in Spark but `3` in Bolt).
+        > For crashes or build errors, please use the Bug Report template.
+
+  - type: dropdown
+    attributes:
+      label: Reference Engine
+      description: Which engine are you comparing Bolt against?
+      options:
+        - Apache Spark
+        - PrestoDB / PrestoSQL
+        - Trino
+        - Apache Flink
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Affected Function / Operator
+      description: e.g. `substr`, `cast`, `date_add`, or `decimal arithmetic`
+      placeholder: date_add
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproduction (Query & Data)
+      description: |
+        Please provide the **minimal** SQL and Data to reproduce the diff.
+      placeholder: |
+        -- Schema
+        CREATE TABLE t1 (c1 INT, c2 STRING);
+        INSERT INTO t1 VALUES (1, '2023-01-01');
+
+        -- Query
+        SELECT date_add(c2, c1) FROM t1;
+      render: sql
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Result Comparison
+      description: Please explicitly show the difference.
+      value: |
+        ### Expected Behavior (Reference Engine Result)
+        ```text
+        2023-01-02
+        ```
+        
+        ### Actual Behavior (Bolt Result)
+        ```text
+        2023-01-01  <-- Wrong result
+        ```
+      render: markdown
+    validations:
+      required: true
+
+  - type: input
+    id: bolt_version
+    attributes:
+      label: Bolt Version / Commit ID
+      placeholder: main branch @ commit ...
+    validations:
+      required: true
+
+  - type: input
+    id: ref_version
+    attributes:
+      label: Reference Engine Version
+      description: e.g. Spark 3.3.1, Presto 0.280
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Important Configurations (Critical)
+      description: |
+        Some configs affect results significantly. 
+        - **Timezone**: (e.g. Asia/Shanghai vs UTC)
+        - **SQL Mode**: (e.g. `spark.sql.ansi.enabled=true`)
+      placeholder: |
+        Timezone: UTC
+        spark.sql.ansi.enabled: false
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the compatibility issue here.
+    validations:
+      required: false

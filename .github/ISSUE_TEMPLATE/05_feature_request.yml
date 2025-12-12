@@ -1,0 +1,101 @@
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Feature Request
+description: Suggest a new feature or improvement for Bolt.
+title: "[Feature] "
+labels: ["feature", "enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **Thank you for helping Bolt grow!**
+        > Please search existing issues to ensure your request hasn't been submitted yet.
+
+  - type: dropdown
+    attributes:
+      label: Feature Category
+      description: What area does this feature belong to?
+      options:
+        - SQL Function / Operator
+        - Connector / Storage (Hive, Iceberg, etc.)
+        - Performance Optimization
+        - Memory Management
+        - Developer Experience / Build System
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Problem / Use Case
+      description: What problem are you trying to solve? What is the user scenario?
+      placeholder: |
+        As a user, I need to calculate X, but currently Bolt does not support...
+        The current implementation is too slow for scenario Y...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed Solution
+      description: |
+        Describe your idea in detail.
+        - For functions: Provide the **Function Signature** (e.g., `func(arg1, arg2) -> result`).
+        - For architectural changes: Describe the design or logic.
+      placeholder: |
+        I propose adding a new function `array_sort_desc(...)`.
+        The logic should handle nulls by...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: References / Prior Art
+      description: |
+        How do other systems (e.g., Spark, Presto, Flink) handle this? 
+        Is there a standard SQL spec for this?
+      placeholder: |
+        Spark implements this as `...`. 
+        PostgreSQL behaves like `...`.
+    validations:
+      required: false
+
+  - type: dropdown
+    attributes:
+      label: Importance
+      description: How critical is this feature for your use case?
+      options:
+        - Blocker (Cannot use Bolt without this)
+        - High (Needed for production)
+        - Medium (Nice to have)
+        - Low (Polishing / Nitpick)
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Willingness to Contribute
+      description: Would you like to implement this feature?
+      options:
+        - Yes, I can submit a PR
+        - Yes, but I need guidance
+        - No, I cannot contribute code
+    validations:
+      required: true

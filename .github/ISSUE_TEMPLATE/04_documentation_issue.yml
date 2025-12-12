@@ -1,0 +1,73 @@
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Documentation Issue
+description: Report a typo, missing documentation, or unclear explanation.
+title: "[Documentation] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > Thanks for helping improve our documentation! 
+        > If you know how to fix it, please consider submitting a Pull Request directly.
+
+  - type: dropdown
+    attributes:
+      label: Issue Type
+      options:
+        - Typo / Grammar mistake
+        - Missing documentation
+        - Outdated information
+        - Unclear / Confusing explanation
+        - Broken link
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Location (URL or File Path)
+      description: Link to the page or path to the file where the issue exists.
+      placeholder: e.g. https://github.com/bytedance/bolt or bolt/core/Config.h
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Description of the Issue
+      description: |
+        Please quote the problematic text and explain what is wrong.
+      placeholder: |
+        In section "Installation", it says "run cmake .", but it should be...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Suggested Fix (Optional)
+      description: If you have a suggestion for how to rewrite it, please put it here.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional Context
+      description: Add any other context or screenshots about the documentation issue here.
+    validations:
+      required: false

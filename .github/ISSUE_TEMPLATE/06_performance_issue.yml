@@ -1,0 +1,115 @@
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Performance Issue
+description: Report a performance regression or slowness compared to expectations.
+title: "[Performance] "
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **Critical Check:**
+        > Performance reports are valid **ONLY** for `Release` or `RelWithDebInfo` builds. 
+        > Please do not report performance issues on `Debug` builds.
+
+  - type: dropdown
+    attributes:
+      label: Performance Bottleneck Type
+      description: Where do you think the bottleneck is?
+      options:
+        - CPU Bound (High CPU usage, slow calculation)
+        - Memory Bound (High RAM usage, OOM, frequent swapping)
+        - I/O Bound (Slow reading/writing files, network wait)
+        - Compilation / Startup Latency
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Environment Details (Critical)
+      description: Performance depends heavily on hardware.
+      value: |
+        - **CPU Model**: (e.g., Intel Xeon Platinum 8380, AMD EPYC 7763)
+        - **SIMD Support**: (e.g., AVX2, AVX-512)
+        - **RAM**: (e.g., 64GB DDR4)
+        - **Storage**: (e.g., local NVMe, S3, HDFS)
+        - **OS & Kernel**: (e.g., Ubuntu 20.04, Linux 5.15)
+        - **Bolt Build Type**: Release
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Workload Description
+      description: |
+        Describe the query, data format, and volume.
+        - **Query**: Provide the SQL or Logical Plan.
+        - **Data Format**: Parquet/ORC? Compression (Snappy/Zstd)?
+        - **Data Size**: Rows count, file size.
+      placeholder: |
+        Query: SELECT count(*) FROM large_table WHERE ...
+        Format: Parquet (Zstd), 1TB total, 1000 files.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Performance Comparison
+      description: Comparing Bolt against what? (Previous Bolt version? Spark? Presto?)
+      value: |
+        | System | Time / Latency | Throughput (Rows/s) | CPU Usage |
+        | :--- | :--- | :--- | :--- |
+        | **Bolt (Current)** | 100s | 10M/s | 100% |
+        | **Baseline** | 50s | 20M/s | 80% |
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproduction Steps
+      description: |
+        How can we reproduce this on our machines?
+        If possible, provide a script to generate mock data.
+      placeholder: |
+        1. Generate TPC-H scale 10 data...
+        2. Run query q1...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Profiling Data / Metrics
+      description: |
+        Please attach profiling data if available. This speeds up investigation by 10x.
+        - **Flamegraph** (`perf record -g ...`)
+        - **Bolt Runtime Stats** (JSON metrics)
+        - **Query Plan** (EXPLAIN output)
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the performance issue here.
+    validations:
+      required: false

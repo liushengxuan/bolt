@@ -73,6 +73,23 @@ MEMORY ?=$(shell free -g | grep 'Mem:' | awk '{print $$2}')
 FREE_MEMORY ?=$(shell free -g | grep 'Mem:' | awk '{print $$4}')
 CPU_CORES ?=$(shell grep -c 'processor' /proc/cpuinfo)
 
+# collect system info
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    OS_DETAILED   := $(shell sw_vers -productName) $(shell sw_vers -productVersion) ($(shell sw_vers -buildVersion))
+    CPU_MODEL     := $(shell sysctl -n machdep.cpu.brand_string)
+    MEM_TOTAL     := $(shell sysctl -n hw.memsize | awk '{print int($$1/1024/1024/1024) " GB"}')
+else
+    OS_DETAILED   := $(shell uname -o 2>/dev/null || uname -s) $(shell uname -r)
+    DISTRO_NAME   := $(shell grep -E '^(PRETTY_NAME)=' /etc/os-release 2>/dev/null | cut -d '"' -f 2)
+    ifneq ($(DISTRO_NAME),)
+        OS_DETAILED += [$(DISTRO_NAME)]
+    endif
+    CPU_MODEL     := $(shell grep "model name" /proc/cpuinfo | head -n1 | cut -d: -f2 | xargs)
+    MEM_TOTAL     := $(shell grep MemTotal /proc/meminfo | awk '{print int($$2/1024/1024) " GB"}')
+endif
+CONAN_EXE := $(shell command -v conan 2> /dev/null)
+CMAKE_EXE := $(shell command -v cmake 2> /dev/null)
 
 # Option to make a minimal build. By default set to "OFF"; set to
 # "ON" to only build a minimal set of components. This may override
@@ -175,9 +192,38 @@ clean:					#: Delete all build artifacts
 
 clang-format-check:
 	find bolt \( -name "*.cpp" -o -name "*.h" \) -type f > files.txt
-	cat files.txt | xargs -I{} -P $(CPU_CORES) clang-format -style=file --dry-run {}  > log.txt 2>&1
+	cat files.txt | xargs -I{} -P $(CPU_CORES) clang-format -style=file --dry-run {} > log.txt 2>&1
 	cat log.txt && echo -e "You can use clang-format -i -style=file path_to_file command to format file"
 	if grep -q 'warning' log.txt; then false; fi
+	@rm -f files.txt log.txt
+
+clang-format:
+	find bolt \( -name "*.cpp" -o -name "*.h" \) -type f | xargs -P $(CPU_CORES) -n 10 clang-format -i -style=file
+
+clang-format-modified:
+	@ (git diff --name-only --diff-filter=ACMR HEAD bolt; \
+	   git ls-files --others --exclude-standard bolt) \
+	| grep -E "\.(cpp|h)$$" | sort | uniq > modified_files.txt || true
+	@if [ -s modified_files.txt ]; then \
+		cat modified_files.txt | xargs -P $(CPU_CORES) clang-format -i -style=file; \
+		echo "✅ Formatted the following modified files:"; \
+		cat modified_files.txt; \
+	else \
+		echo "💤 No modified .cpp/.h files found."; \
+	fi
+	@rm -f modified_files.txt
+
+clang-format-branch:
+	@echo "Formatting changes against main..."
+	@git diff --name-only --diff-filter=ACMR origin/main...HEAD bolt \
+	| grep -E "\.(cpp|h)$$" > branch_files.txt || true
+	@if [ -s branch_files.txt ]; then \
+		cat branch_files.txt | xargs -P $(CPU_CORES) clang-format -i -style=file; \
+		echo "✅ Formatted files changed in this branch."; \
+	else \
+		echo "💤 No changed .cpp/.h files found against main."; \
+	fi
+	@rm -f branch_files.txt
 
 conan_build:
 	if [ ! -d "_build" ]; then \
@@ -309,6 +355,40 @@ unittest_coverage: debug_with_test_cov		#: Build with debugging and run unit tes
 
 hdfstest: hdfs-debug-build #: Build with debugging, hdfs enabled and run hdfs tests
 	ctest --test-dir $(BUILD_BASE_DIR)/Debug -j ${NUM_THREADS} --output-on-failure -R bolt_hdfs_file_test
+
+system_info:
+	@echo "----------------------------------------------------------------"
+	@echo "## System Configuration Report"
+	@echo "*(Auto-generated via 'make report')*"
+	@echo ""
+	@echo "### 1. Hardware & OS (Performance Context)"
+	@echo "- **OS**: $(OS_DETAILED)"
+	@echo "- **Arch**: $(shell uname -m)"
+	@echo "- **CPU**: $(CPU_MODEL)"
+	@echo "- **Cores**: $(CPU_CORES)"
+	@echo "- **RAM**: $(MEM_TOTAL)"
+	@echo ""
+	@echo "### 2. Compiler Toolchain (Build Context)"
+	@echo "- **C Compiler**: $(CC)"
+	@echo "  - Version: \`$(shell $(CC) --version | head -n 1)\`"
+	@echo "- **CXX Compiler**: $(CXX)"
+	@echo "  - Version: \`$(shell $(CXX) --version | head -n 1)\`"
+ifneq ($(CMAKE_EXE),)
+	@echo "- **CMake**: $(shell cmake --version | head -n 1 | awk '{print $$3}')"
+	@echo "- **Ninja**: $(shell ninja --version')"
+endif
+	@echo ""
+	@echo "### 3. Conan Dependency Manager"
+ifneq ($(CONAN_EXE),)
+	@echo "- **Conan Version**: $(shell conan --version)"
+	@echo "- **Conan Profile (default)**:"
+	@echo "\`\`\`ini"
+	@conan profile show default 2>/dev/null || conan profile show 2>/dev/null || echo "Unable to read profile"
+	@echo "\`\`\`"
+else
+	@echo "*Conan not found in PATH*"
+endif
+	@echo "----------------------------------------------------------------"
 
 help:					#: Show the help messages
 	@cat $(firstword $(MAKEFILE_LIST)) | \
