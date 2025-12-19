@@ -1062,6 +1062,8 @@ bool HashBuild::finishHashBuild() {
   }
   recordSpillStats();
 
+  // TODO: re-enable parallel join build with spilling triggered after
+  // https://github.com/facebookincubator/velox/issues/3567 is fixed.
   const bool allowParallelJoinBuild =
       !otherTables.empty() && spillPartitions.empty();
   table_->prepareJoinTable(

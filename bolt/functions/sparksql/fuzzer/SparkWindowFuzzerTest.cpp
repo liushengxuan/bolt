@@ -87,6 +87,7 @@ int main(int argc, char** argv) {
   // List of functions that have known bugs that cause crashes or failures.
   static const std::unordered_set<std::string> skipFunctions = {
       // Below are for presto.
+      // https://github.com/facebookincubator/velox/issues/3493
       "stddev_pop",
       // Lambda functions are not supported yet.
       "reduce_agg",
@@ -114,6 +115,7 @@ int main(int argc, char** argv) {
           {"skewness", nullptr},
           {"kurtosis", nullptr},
           {"entropy", nullptr},
+          // https://github.com/facebookincubator/velox/issues/6330
           {"max_data_size_for_stats", nullptr},
           {"sum_data_size_for_stats", nullptr},
       };

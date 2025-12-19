@@ -111,7 +111,8 @@ class Buffer {
 
   template <typename T>
   T* asMutable() const {
-    // TODO: change this to isMutable().
+    // TODO: change this to isMutable(). See
+    // https://github.com/facebookincubator/velox/issues/6562.
     BOLT_CHECK(!isView());
     // We can't check actual types, but we can sanity-check POD/non-POD
     // conversion. `void` is special as it's used in type-erased contexts

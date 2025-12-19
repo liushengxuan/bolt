@@ -367,6 +367,7 @@ std::vector<TypePtr> SplitReader::adaptColumns(
       if (!fileTypeIdx.has_value()) {
         // If field name exists in the user-specified output type,
         // set the column as null constant.
+        // Related PR: https://github.com/facebookincubator/velox/pull/6427.
         auto outputTypeIdx = readerOutputType_->getChildIdxIfExists(fieldName);
         if (outputTypeIdx.has_value()) {
           setNullConstantValue(

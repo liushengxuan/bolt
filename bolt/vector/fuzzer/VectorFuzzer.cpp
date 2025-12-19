@@ -1618,6 +1618,7 @@ const std::vector<TypePtr> defaultScalarTypes(
     bool withDecimal = true,
     bool withHugeint = true) {
   // @TODO Add decimal TypeKinds to randType.
+  // Refer https://github.com/facebookincubator/velox/issues/3942
   static std::vector<TypePtr> kScalarTypes{
       BOOLEAN(),
       TINYINT(),

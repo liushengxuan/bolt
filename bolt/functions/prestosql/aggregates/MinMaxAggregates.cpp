@@ -150,6 +150,8 @@ class MaxAggregate : public MinMaxAggregate<T> {
       const SelectivityVector& rows,
       const std::vector<VectorPtr>& args,
       bool mayPushdown) final {
+    // Re-enable pushdown for TIMESTAMP after
+    // https://github.com/facebookincubator/velox/issues/6297 is fixed.
     // Decimal is not supported to pushdown. The reason for that is the file can
     // have different precision/scale compared to table schema and this forces
     // us to do a slow per-row division, which make the benefit very small and
@@ -238,6 +240,8 @@ class MinAggregate : public MinMaxAggregate<T> {
       const SelectivityVector& rows,
       const std::vector<VectorPtr>& args,
       bool mayPushdown) final {
+    // Re-enable pushdown for TIMESTAMP after
+    // https://github.com/facebookincubator/velox/issues/6297 is fixed.
     // Decimal is not supported to pushdown. The reason for that is the file can
     // have different precision/scale compared to table schema and this forces
     // us to do a slow per-row division, which make the benefit very small and

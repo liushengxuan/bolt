@@ -262,12 +262,14 @@ void addSortingKeys(
 
 bool AggregationNode::canSpill(const QueryConfig& queryConfig) const {
   // TODO: Add spilling for aggregations over distinct inputs.
+  // https://github.com/facebookincubator/velox/issues/7454
   for (const auto& aggregate : aggregates_) {
     if (aggregate.distinct) {
       return false;
     }
   }
-  // TODO: add spilling for pre-grouped aggregation later.
+  // TODO: add spilling for pre-grouped aggregation later:
+  // https://github.com/facebookincubator/velox/issues/3264
   return (isFinal() || isSingle() || isPartial()) && preGroupedKeys().empty() &&
       queryConfig.aggregationSpillEnabled();
 }

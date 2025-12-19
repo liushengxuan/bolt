@@ -45,6 +45,7 @@ class CompactRowTest : public ::testing::Test, public VectorTestBase {
   }
 
   /// TODO Replace with VectorFuzzer::fuzzInputRow once
+  /// https://github.com/facebookincubator/velox/issues/6195 is fixed.
   RowVectorPtr fuzzInputRow(VectorFuzzer& fuzzer, const RowTypePtr& rowType) {
     const auto size = fuzzer.getOptions().vectorSize;
     std::vector<VectorPtr> children;

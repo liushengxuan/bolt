@@ -348,6 +348,7 @@ TEST_F(ApproxDistinctTest, hugeInt) {
       makeFlatVector<int128_t>(50000, [](auto row) { return row; });
   // Last param is set false to disable tablescan test
   // as DWRF writer doesn't have hugeint support.
+  // Refer:https://github.com/facebookincubator/velox/issues/7775
   testGlobalAgg(hugeIntValues, 49669, false);
   testGlobalAgg(
       hugeIntValues, common::hll::kLowestMaxStandardError, 50110, false);

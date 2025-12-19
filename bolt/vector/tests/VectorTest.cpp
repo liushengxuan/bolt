@@ -1354,6 +1354,16 @@ TEST_F(VectorTest, copyFromAllNulls) {
         [](auto row) { return row; },
         [](auto row) { return row * 0.1; });
   });
+
+  // TODO Enable after fixing
+  // https://github.com/facebookincubator/velox/issues/6612
+  //  // Copy to ROW.
+  //  test([&]() {
+  //    return makeRowVector({
+  //        makeFlatVector<int64_t>(size, [](auto row) { return row; }),
+  //        makeFlatVector<double>(size, [](auto row) { return row * 0.1; }),
+  //    });
+  //  });
 }
 
 TEST_F(VectorTest, copyFromUnknown) {
