@@ -19,19 +19,6 @@ add_library(
         AesDecryptor.cpp
 )
 
-#
-#
-#target_include_directories(bolt_dwio_parquet_decryption PRIVATE
-#        ${TORCH_INCLUDE_DIRS}
-#        ${fmt_INCLUDE_DIRS}
-#        ${glog_INCLUDE_DIRS} # transitive include
-#        ${gflags_INCLUDE_DIRS} # transitive include
-#        ${folly_INCLUDE_DIRS} # transitive include
-#        ${Boost_INCLUDE_DIRS} # transitive include
-#        ${double-conversion_INCLUDE_DIRS} # transitive include
-#)
-
-
 target_link_libraries(
         bolt_dwio_parquet_decryption
         bolt_exception

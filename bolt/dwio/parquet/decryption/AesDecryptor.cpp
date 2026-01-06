@@ -18,25 +18,24 @@
 
 namespace bytedance::bolt::parquet::decryption {
 
-
 AesDecryptor::AesDecryptor(
     ::parquet::ParquetCipher::type alg_id,
     int key_len,
     bool metadata,
     int32_t max_encrypted_size,
     bool contains_length) {
-  
   if (::parquet::ParquetCipher::AES_GCM_V1 != alg_id &&
-    ::parquet::ParquetCipher::AES_GCM_CTR_V1 != alg_id) {
+      ::parquet::ParquetCipher::AES_GCM_CTR_V1 != alg_id) {
     BOLT_FAIL("Crypto algorithm {} is not supported", alg_id);
-    }
-  
+  }
+
   ctx_ = nullptr;
   length_buffer_length_ = contains_length ? kBufferSizeLength : 0;
-  ciphertext_size_delta_ = length_buffer_length_ + kNonceLength;
+  ciphertext_size_delta_ =
+      length_buffer_length_ + arrow::encryption::kNonceLength;
   if (metadata || (::parquet::ParquetCipher::AES_GCM_V1 == alg_id)) {
     aes_mode_ = kGcmMode;
-    ciphertext_size_delta_ += kGcmTagLength;
+    ciphertext_size_delta_ += arrow::encryption::kGcmTagLength;
   } else {
     aes_mode_ = kCtrMode;
   }
@@ -81,14 +80,13 @@ std::shared_ptr<AesDecryptor> AesDecryptor::Make(
     bool metadata,
     int32_t max_encrypted_size,
     std::vector<std::weak_ptr<AesDecryptor>>* all_decryptors) {
-
   std::shared_ptr<AesDecryptor> decryptor = std::make_shared<AesDecryptor>(
       alg_id, key_len, metadata, max_encrypted_size);
 
   if (all_decryptors != nullptr) {
     all_decryptors->push_back(decryptor);
   }
-  
+
   return decryptor;
 }
 
@@ -133,10 +131,10 @@ int AesDecryptor::GcmDecrypt(
   int len;
   int write_plaintext_len;
 
-  uint8_t tag[kGcmTagLength];
-  memset(tag, 0, kGcmTagLength);
-  uint8_t nonce[kNonceLength];
-  memset(nonce, 0, kNonceLength);
+  uint8_t tag[arrow::encryption::kGcmTagLength];
+  memset(tag, 0, arrow::encryption::kGcmTagLength);
+  uint8_t nonce[arrow::encryption::kNonceLength];
+  memset(nonce, 0, arrow::encryption::kNonceLength);
 
   if (length_buffer_length_ > 0) {
     // Extract ciphertext length
@@ -155,18 +153,18 @@ int AesDecryptor::GcmDecrypt(
     }
   }
 
-  auto decrypt_len =
-      ciphertext_len - length_buffer_length_ - kNonceLength - kGcmTagLength;
+  auto decrypt_len = ciphertext_len - length_buffer_length_ -
+      arrow::encryption::kNonceLength - arrow::encryption::kGcmTagLength;
 
   BOLT_CHECK(decrypt_len <= plaintext_len, "plain text buffer too short");
 
   // Extracting IV and tag
   std::copy(
       ciphertext + length_buffer_length_,
-      ciphertext + length_buffer_length_ + kNonceLength,
+      ciphertext + length_buffer_length_ + arrow::encryption::kNonceLength,
       nonce);
   std::copy(
-      ciphertext + ciphertext_len - kGcmTagLength,
+      ciphertext + ciphertext_len - arrow::encryption::kGcmTagLength,
       ciphertext + ciphertext_len,
       tag);
 
@@ -217,7 +215,7 @@ int AesDecryptor::GcmDecrypt(
           ctx_,
           plaintext,
           &len,
-          ciphertext + length_buffer_length_ + kNonceLength,
+          ciphertext + length_buffer_length_ + arrow::encryption::kNonceLength,
           decrypt_len)) {
     printError();
     BOLT_FAIL("Failed decryption update");
@@ -226,7 +224,8 @@ int AesDecryptor::GcmDecrypt(
   write_plaintext_len = len;
 
   // Checking the tag (authentication)
-  if (!EVP_CIPHER_CTX_ctrl(ctx_, EVP_CTRL_GCM_SET_TAG, kGcmTagLength, tag)) {
+  if (!EVP_CIPHER_CTX_ctrl(
+          ctx_, EVP_CTRL_GCM_SET_TAG, arrow::encryption::kGcmTagLength, tag)) {
     printError();
     BOLT_FAIL("Failed authentication");
   }
@@ -271,7 +270,7 @@ int AesDecryptor::CtrDecrypt(
     }
   }
 
-  auto decrypt_len = ciphertext_len - kNonceLength;
+  auto decrypt_len = ciphertext_len - arrow::encryption::kNonceLength;
   BOLT_CHECK(decrypt_len <= plaintext_len, "plain text buffer too short");
   bool left = false;
   if (max_encrypted_size_ != 0 && decrypt_len >= max_encrypted_size_) {
@@ -282,7 +281,7 @@ int AesDecryptor::CtrDecrypt(
   // Extracting nonce
   std::copy(
       ciphertext + length_buffer_length_,
-      ciphertext + length_buffer_length_ + kNonceLength,
+      ciphertext + length_buffer_length_ + arrow::encryption::kNonceLength,
       iv);
   // Parquet CTR IVs are comprised of a 12-byte nonce and a 4-byte initial
   // counter field.
@@ -300,7 +299,7 @@ int AesDecryptor::CtrDecrypt(
           ctx_,
           plaintext,
           &len,
-          ciphertext + length_buffer_length_ + kNonceLength,
+          ciphertext + length_buffer_length_ + arrow::encryption::kNonceLength,
           decrypt_len)) {
     BOLT_FAIL("Failed decryption update");
   }
@@ -315,13 +314,14 @@ int AesDecryptor::CtrDecrypt(
   write_plaintext_len += len;
   if (left) {
     std::copy(
-        ciphertext + length_buffer_length_ + kNonceLength + decrypt_len,
+        ciphertext + length_buffer_length_ + arrow::encryption::kNonceLength +
+            decrypt_len,
         ciphertext + ciphertext_len + length_buffer_length_,
         plaintext + write_plaintext_len);
-    write_plaintext_len += ciphertext_len - kNonceLength - decrypt_len;
+    write_plaintext_len +=
+        ciphertext_len - arrow::encryption::kNonceLength - decrypt_len;
   }
   return write_plaintext_len;
 }
 
-
-} //bytedance::bolt::parquet::decryption
+} // namespace bytedance::bolt::parquet::decryption

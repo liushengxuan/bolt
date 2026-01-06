@@ -18,5 +18,4 @@
 
 namespace bytedance::bolt::parquet::decryption {
 
-
-} // bytedance::bolt::parquet::decryption
+} // namespace bytedance::bolt::parquet::decryption

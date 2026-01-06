@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-
 #pragma once
 
 #include <cstring>
-
 
 #include <parquet/encryption/encryption.h>
 #include <parquet/types.h>
@@ -28,7 +26,7 @@
 #include <openssl/rand.h>
 
 #include "bolt/common/base/Exceptions.h"
-
+#include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
 
 namespace bytedance::bolt::parquet::decryption {
 
@@ -36,14 +34,14 @@ constexpr int kGcmMode = 0;
 constexpr int kCtrMode = 1;
 constexpr int kCtrIvLength = 16;
 constexpr int kBufferSizeLength = 4;
-
-constexpr int kGcmTagLength = 16;
-constexpr int kNonceLength = 12;
+//
+// constexpr int kGcmTagLength = 16;
+// constexpr int kNonceLength = 12;
 
 #define DECRYPT_INIT(CTX, ALG)                                        \
-if (1 != EVP_DecryptInit_ex(CTX, ALG, nullptr, nullptr, nullptr)) { \
-BOLT_FAIL("Couldn't init ALG decryption");                       \
-}
+  if (1 != EVP_DecryptInit_ex(CTX, ALG, nullptr, nullptr, nullptr)) { \
+    BOLT_FAIL("Couldn't init ALG decryption");                        \
+  }
 
 // AesDecryptor performs AES decryption operations with GCM or CTR ciphers.
 class AesDecryptor {
@@ -51,9 +49,10 @@ class AesDecryptor {
   /// \brief Constructor function of AesDecryptor.
   ///
   /// \param encryptionType the encryption algorithm to use.
-  /// \param keyLen can only serve one key length. Possible values: 16, 24, 32 bytes.
-  /// \param hasMetadataDecryptor if true then this is a metadata decryptor.
-  /// \param containsLength If it is true, expect ciphertext length prepended to the ciphertext.
+  /// \param keyLen can only serve one key length. Possible values: 16, 24, 32
+  /// bytes. \param hasMetadataDecryptor if true then this is a metadata
+  /// decryptor. \param containsLength If it is true, expect ciphertext length
+  /// prepended to the ciphertext.
   explicit AesDecryptor(
       ::parquet::ParquetCipher::type alg_id,
       int key_len,
@@ -90,20 +89,19 @@ class AesDecryptor {
     return ciphertext_size_delta_;
   }
 
-  /// \brief Decrypts crypted text with the key and aad. Key length is passed only for
-  /// validation. If it is different from value from the  constructor, an
-  /// exception would trigered.
+  /// \brief Decrypts crypted text with the key and aad. Key length is passed
+  /// only for validation. If it is different from value from the  constructor,
+  /// an exception would trigered.
 
   int Decrypt(
-        const unsigned char* ciphertext,
-        int ciphertext_len,
-        const unsigned char* key,
-        int key_len,
-        const unsigned char* aad,
-        int aad_len,
-        unsigned char* plaintext,
-        int plaintext_len);
-
+      const unsigned char* ciphertext,
+      int ciphertext_len,
+      const unsigned char* key,
+      int key_len,
+      const unsigned char* aad,
+      int aad_len,
+      unsigned char* plaintext,
+      int plaintext_len);
 
   int GcmDecrypt(
       const unsigned char* ciphertext,
@@ -148,4 +146,4 @@ void QuickUpdatePageAad(int32_t new_page_ordinal, std::string* AAD);
 // Wraps OpenSSL RAND_bytes function
 void RandBytes(unsigned char* buf, int num);
 
-} // bytedance::bolt::parquet::decryption
+} // namespace bytedance::bolt::parquet::decryption
