@@ -18,8 +18,6 @@
 
 #include <cstring>
 
-#include <parquet/encryption/encryption.h>
-#include <parquet/types.h>
 
 #include <openssl/aes.h>
 #include <openssl/evp.h>
@@ -28,6 +26,8 @@
 #include "bolt/common/base/Exceptions.h"
 #include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
 #include "bolt/dwio/parquet/decryption/Decryptor.h"
+#include "bolt/dwio/parquet/arrow/Encryption.h"
+#include "bolt/dwio/parquet/arrow/Types.h"
 
 namespace bytedance::bolt::parquet::decryption {
 
@@ -42,7 +42,7 @@ class AesDecryptor : public Decryptor {
   /// decryptor. \param containsLength If it is true, expect ciphertext length
   /// prepended to the ciphertext.
   explicit AesDecryptor(
-      ::parquet::ParquetCipher::type algId,
+      ParquetCipher::type algId,
       bool metadata,
       int32_t maxEncryptedSize,
       const std::string& key,
@@ -122,19 +122,19 @@ private:
   int32_t maxEncryptedSize_;
 };
 
-std::string CreateModuleAad(
-    const std::string& fileAad,
-    int8_t moduleType,
-    int16_t rowGroupOrdinal,
-    int16_t columnOrdinal,
-    int32_t pageOrdinal);
-
-std::string CreateFooterAad(const std::string& aadPrefixBytes);
+// std::string CreateModuleAad(
+//     const std::string& fileAad,
+//     int8_t moduleType,
+//     int16_t rowGroupOrdinal,
+//     int16_t columnOrdinal,
+//     int32_t pageOrdinal);
+//
+// std::string CreateFooterAad(const std::string& aadPrefixBytes);
 
 // Update last two bytes of page (or page header) module AAD
-void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad);
+// void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad);
 
 // Wraps OpenSSL RAND_bytes function
-void RandBytes(unsigned char* buf, int num);
+// void RandBytes(unsigned char* buf, int num);
 
 } // namespace bytedance::bolt::parquet::decryption

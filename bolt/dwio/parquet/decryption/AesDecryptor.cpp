@@ -18,76 +18,76 @@
 
 namespace bytedance::bolt::parquet::decryption {
 
-static void CheckPageOrdinal(int32_t page_ordinal) {
-  if (page_ordinal > std::numeric_limits<int16_t>::max()) {
-    BOLT_FAIL(
-        "Encrypted Parquet files can't have more than {}  pages per chunk: got {}",
-        std::numeric_limits<int16_t>::max(),
-        page_ordinal);
-  }
-}
+// static void CheckPageOrdinal(int32_t page_ordinal) {
+//   if (page_ordinal > std::numeric_limits<int16_t>::max()) {
+//     BOLT_FAIL(
+//         "Encrypted Parquet files can't have more than {}  pages per chunk: got {}",
+//         std::numeric_limits<int16_t>::max(),
+//         page_ordinal);
+//   }
+// }
 
-static std::string ShortToBytesLe(int16_t input) {
-  int8_t output[2];
-  memset(output, 0, 2);
-  output[1] = static_cast<int8_t>(0xff & (input >> 8));
-  output[0] = static_cast<int8_t>(0xff & (input));
+// static std::string ShortToBytesLe(int16_t input) {
+//   int8_t output[2];
+//   memset(output, 0, 2);
+//   output[1] = static_cast<int8_t>(0xff & (input >> 8));
+//   output[0] = static_cast<int8_t>(0xff & (input));
+//
+//   return std::string(reinterpret_cast<char const*>(output), 2);
+// }
 
-  return std::string(reinterpret_cast<char const*>(output), 2);
-}
-
-std::string CreateFooterAad(const std::string& aadPrefixBytes) {
-  return CreateModuleAad(
-      aadPrefixBytes,
-      arrow::encryption::kFooter,
-      static_cast<int16_t>(-1),
-      static_cast<int16_t>(-1),
-      static_cast<int16_t>(-1));
-}
+// std::string CreateFooterAad(const std::string& aadPrefixBytes) {
+//   return CreateModuleAad(
+//       aadPrefixBytes,
+//       arrow::encryption::kFooter,
+//       static_cast<int16_t>(-1),
+//       static_cast<int16_t>(-1),
+//       static_cast<int16_t>(-1));
+// }
 
 // Update last two bytes with new page ordinal (instead of creating new page AAD
 // from scratch)
-void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad) {
-  CheckPageOrdinal(newPageOrdinal);
-  const std::string pageOrdinalBytes =
-      ShortToBytesLe(static_cast<int16_t>(newPageOrdinal));
-  std::memcpy(aad->data() + aad->length() - 2, pageOrdinalBytes.data(), 2);
-}
-
-std::string CreateModuleAad(
-    const std::string& fileAad,
-    int8_t moduleType,
-    int16_t rowGroupOrdinal,
-    int16_t columnOrdinal,
-    int32_t pageOrdinal) {
-  CheckPageOrdinal(pageOrdinal);
-  const int16_t pageOrdinalShort = static_cast<int16_t>(pageOrdinal);
-  int8_t typeOrdinalBytes[1];
-  typeOrdinalBytes[0] = moduleType;
-  std::string typeOrdinalBytesStr(
-      reinterpret_cast<char const*>(typeOrdinalBytes), 1);
-  if (arrow::encryption::kFooter == moduleType) {
-    std::string result = fileAad + typeOrdinalBytesStr;
-    return result;
-  }
-  std::string rowGroupOrdinalBytes = ShortToBytesLe(rowGroupOrdinal);
-  std::string columnOrdinalBytes = ShortToBytesLe(columnOrdinal);
-  if (arrow::encryption::kDataPage != moduleType &&
-      arrow::encryption::kDataPageHeader != moduleType) {
-    std::ostringstream out;
-    out << fileAad << typeOrdinalBytesStr << rowGroupOrdinalBytes
-        << columnOrdinalBytes;
-    return out.str();
-  }
-  std::string pageOrdinalBytes = ShortToBytesLe(pageOrdinalShort);
-  std::ostringstream out;
-  out << fileAad << typeOrdinalBytesStr << rowGroupOrdinalBytes
-      << columnOrdinalBytes << pageOrdinalBytes;
-  return out.str();
-}
+// void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad) {
+//   CheckPageOrdinal(newPageOrdinal);
+//   const std::string pageOrdinalBytes =
+//       ShortToBytesLe(static_cast<int16_t>(newPageOrdinal));
+//   std::memcpy(aad->data() + aad->length() - 2, pageOrdinalBytes.data(), 2);
+// }
+//
+// std::string CreateModuleAad(
+//     const std::string& fileAad,
+//     int8_t moduleType,
+//     int16_t rowGroupOrdinal,
+//     int16_t columnOrdinal,
+//     int32_t pageOrdinal) {
+//   CheckPageOrdinal(pageOrdinal);
+//   const int16_t pageOrdinalShort = static_cast<int16_t>(pageOrdinal);
+//   int8_t typeOrdinalBytes[1];
+//   typeOrdinalBytes[0] = moduleType;
+//   std::string typeOrdinalBytesStr(
+//       reinterpret_cast<char const*>(typeOrdinalBytes), 1);
+//   if (arrow::encryption::kFooter == moduleType) {
+//     std::string result = fileAad + typeOrdinalBytesStr;
+//     return result;
+//   }
+//   std::string rowGroupOrdinalBytes = ShortToBytesLe(rowGroupOrdinal);
+//   std::string columnOrdinalBytes = ShortToBytesLe(columnOrdinal);
+//   if (arrow::encryption::kDataPage != moduleType &&
+//       arrow::encryption::kDataPageHeader != moduleType) {
+//     std::ostringstream out;
+//     out << fileAad << typeOrdinalBytesStr << rowGroupOrdinalBytes
+//         << columnOrdinalBytes;
+//     return out.str();
+//   }
+//   std::string pageOrdinalBytes = ShortToBytesLe(pageOrdinalShort);
+//   std::ostringstream out;
+//   out << fileAad << typeOrdinalBytesStr << rowGroupOrdinalBytes
+//       << columnOrdinalBytes << pageOrdinalBytes;
+//   return out.str();
+// }
 
 AesDecryptor::AesDecryptor(
-    ::parquet::ParquetCipher::type algId,
+    ParquetCipher::type algId,
     bool metadata,
     int32_t maxEncryptedSize,
     const std::string& key,
@@ -96,8 +96,8 @@ AesDecryptor::AesDecryptor(
     memory::MemoryPool* pool,
     bool containsLength)
     : Decryptor(key, fileAad, aad, pool) {
-  if (::parquet::ParquetCipher::AES_GCM_V1 != algId &&
-      ::parquet::ParquetCipher::AES_GCM_CTR_V1 != algId) {
+  if (ParquetCipher::AES_GCM_V1 != algId &&
+      ParquetCipher::AES_GCM_CTR_V1 != algId) {
     BOLT_FAIL("Crypto algorithm {} is not supported", algId);
   }
 
@@ -106,7 +106,7 @@ AesDecryptor::AesDecryptor(
   lengthBufferLength_ = containsLength ? kBufferSizeLength : 0;
   ciphertextSizeDelta_ =
       lengthBufferLength_ + arrow::encryption::kNonceLength;
-  if (metadata || (::parquet::ParquetCipher::AES_GCM_V1 == algId)) {
+  if (metadata || (ParquetCipher::AES_GCM_V1 == algId)) {
     aesMode_ = kGcmMode;
     ciphertextSizeDelta_ += arrow::encryption::kGcmTagLength;
   } else {
@@ -147,7 +147,7 @@ AesDecryptor::AesDecryptor(
 }
 //
 // std::shared_ptr<AesDecryptor> AesDecryptor::Make(
-//     ::parquet::ParquetCipher::type alg_id,
+//     ParquetCipher::type alg_id,
 //     int key_len,
 //     bool metadata,
 //     int32_t max_encrypted_size,
