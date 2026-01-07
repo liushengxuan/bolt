@@ -27,24 +27,12 @@
 
 #include "bolt/common/base/Exceptions.h"
 #include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
+#include "bolt/dwio/parquet/decryption/Decryptor.h"
 
 namespace bytedance::bolt::parquet::decryption {
 
-constexpr int kGcmMode = 0;
-constexpr int kCtrMode = 1;
-constexpr int kCtrIvLength = 16;
-constexpr int kBufferSizeLength = 4;
-//
-// constexpr int kGcmTagLength = 16;
-// constexpr int kNonceLength = 12;
-
-#define DECRYPT_INIT(CTX, ALG)                                        \
-  if (1 != EVP_DecryptInit_ex(CTX, ALG, nullptr, nullptr, nullptr)) { \
-    BOLT_FAIL("Couldn't init ALG decryption");                        \
-  }
-
 // AesDecryptor performs AES decryption operations with GCM or CTR ciphers.
-class AesDecryptor {
+class AesDecryptor : public Decryptor {
  public:
   /// \brief Constructor function of AesDecryptor.
   ///
@@ -54,26 +42,29 @@ class AesDecryptor {
   /// decryptor. \param containsLength If it is true, expect ciphertext length
   /// prepended to the ciphertext.
   explicit AesDecryptor(
-      ::parquet::ParquetCipher::type alg_id,
-      int key_len,
+      ::parquet::ParquetCipher::type algId,
       bool metadata,
-      int32_t max_encrypted_size,
-      bool contains_length = true);
-
-  /// \brief Factory function to create an AesDecryptor.
-  ///
-  /// \param encryptionType the encryption algorithm to use.
-  /// \param keyLen key length. Possible values: 16, 24, 32 bytes.
-  /// \param hasMetadataDecryptor if true then this is a metadata decryptor.
-  /// \param allDecryptors A weak reference to all decryptors that need to be
-  /// wiped out when decryption is finished \return shared pointer to a new
-  /// AesDecryptor.
-  static std::shared_ptr<AesDecryptor> Make(
-      ::parquet::ParquetCipher::type alg_id,
-      int key_len,
-      bool metadata,
-      int32_t max_encrypted_size,
-      std::vector<std::weak_ptr<AesDecryptor>>* all_decryptors);
+      int32_t maxEncryptedSize,
+      const std::string& key,
+      const std::string& fileAad,
+      const std::string& aad,
+      memory::MemoryPool* pool,
+      bool containsLength = true);
+  //
+  // /// \brief Factory function to create an AesDecryptor.
+  // ///
+  // /// \param encryptionType the encryption algorithm to use.
+  // /// \param keyLen key length. Possible values: 16, 24, 32 bytes.
+  // /// \param hasMetadataDecryptor if true then this is a metadata decryptor.
+  // /// \param allDecryptors A weak reference to all decryptors that need to be
+  // /// wiped out when decryption is finished \return shared pointer to a new
+  // /// AesDecryptor.
+  // static std::shared_ptr<AesDecryptor> Make(
+  //     ::parquet::ParquetCipher::type alg_id,
+  //     int key_len,
+  //     bool metadata,
+  //     int32_t max_encrypted_size,
+  //     std::vector<std::weak_ptr<AesDecryptor>>* all_decryptors);
 
   ~AesDecryptor();
 
@@ -86,7 +77,7 @@ class AesDecryptor {
 
   /// \brief Get the size difference between plain text and crytped text.
   int ciphertext_size_delta() {
-    return ciphertext_size_delta_;
+    return ciphertextSizeDelta_;
   }
 
   /// \brief Decrypts crypted text with the key and aad. Key length is passed
@@ -94,54 +85,54 @@ class AesDecryptor {
   /// an exception would trigered.
 
   int Decrypt(
-      const unsigned char* ciphertext,
-      int ciphertext_len,
-      const unsigned char* key,
-      int key_len,
-      const unsigned char* aad,
-      int aad_len,
-      unsigned char* plaintext,
-      int plaintext_len);
+      const uint8_t* ciphertext,
+      int ciphertextLen,
+      uint8_t* plaintext,
+      int plaintextLen) const override;
 
+  int CiphertextSizeDelta() const override {
+    return ciphertextSizeDelta_;
+  };
+
+private:
   int GcmDecrypt(
       const unsigned char* ciphertext,
-      int ciphertext_len,
+      int ciphertextLen,
       const unsigned char* key,
-      int key_len,
+      int keyLen,
       const unsigned char* aad,
-      int aad_len,
+      int aadLen,
       unsigned char* plaintext,
-      int plaintext_len);
+      int plaintextLen) const;
 
   int CtrDecrypt(
       const unsigned char* ciphertext,
-      int ciphertext_len,
+      int ciphertextLen,
       const unsigned char* key,
-      int key_len,
+      int keyLen,
       unsigned char* plaintext,
-      int plaintext_len);
+      int plaintextLen) const;
 
- private:
+
   // PIMPL Idiom
   EVP_CIPHER_CTX* ctx_;
-  int aes_mode_;
-  int key_length_;
-  int ciphertext_size_delta_;
-  int length_buffer_length_;
-  int32_t max_encrypted_size_;
+  int aesMode_;
+  int ciphertextSizeDelta_;
+  int lengthBufferLength_;
+  int32_t maxEncryptedSize_;
 };
 
 std::string CreateModuleAad(
-    const std::string& file_aad,
-    int8_t module_type,
-    int16_t row_group_ordinal,
-    int16_t column_ordinal,
-    int32_t page_ordinal);
+    const std::string& fileAad,
+    int8_t moduleType,
+    int16_t rowGroupOrdinal,
+    int16_t columnOrdinal,
+    int32_t pageOrdinal);
 
-std::string CreateFooterAad(const std::string& aad_prefix_bytes);
+std::string CreateFooterAad(const std::string& aadPrefixBytes);
 
 // Update last two bytes of page (or page header) module AAD
-void QuickUpdatePageAad(int32_t new_page_ordinal, std::string* AAD);
+void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad);
 
 // Wraps OpenSSL RAND_bytes function
 void RandBytes(unsigned char* buf, int num);
