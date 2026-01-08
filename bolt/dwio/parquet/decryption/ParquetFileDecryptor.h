@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-#include "bolt/dwio/parquet/arrow/Encryption.h"
-#include "bolt/dwio/parquet/arrow/Types.h"
 #include "bolt/common/memory/MemoryPool.h"
+#include "bolt/dwio/parquet/arrow/Encryption.h"
+#include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
+#include "bolt/dwio/parquet/arrow/Types.h"
+#include "bolt/dwio/parquet/decryption/AesDecryptor.h"
+#include "bolt/dwio/parquet/decryption/Decryptor.h"
 
 namespace bytedance::bolt::parquet::decryption {
 
@@ -69,7 +72,7 @@ class InternalFileDecryptor {
       const std::string& aad = "");
 
  private:
-  ::parquet::FileDecryptionProperties* properties_;
+  arrow::FileDecryptionProperties* properties_;
   // Concatenation of aad_prefix (if exists) and aad_file_unique
   std::string file_aad_;
   std::map<std::string, std::shared_ptr<Decryptor>> column_data_map_;
@@ -77,22 +80,18 @@ class InternalFileDecryptor {
 
   std::shared_ptr<Decryptor> footer_metadata_decryptor_;
   std::shared_ptr<Decryptor> footer_data_decryptor_;
-  bytedance::bolt::parquet::ParquetCipher::type algorithm_;
+  arrow::ParquetCipher::type algorithm_;
   std::string footer_key_metadata_;
-  // A weak reference to all decryptors that need to be wiped out when
-  // decryption is finished
-  std::vector<std::weak_ptr<encryption::AesDecryptor>> all_decryptors_;
 
   memory::MemoryPool* pool_;
   int32_t max_encrypted_size_;
 
-  std::shared_ptr<Decryptor> GetFooterDecryptor(
-      const std::string& aad,
-      bool metadata);
-  std::shared_ptr<Decryptor> GetColumnDecryptor(
+  void EnsureFooterDecryptors(const std::string& aad);
+  std::shared_ptr<Decryptor> GetFooterMetadataDecryptor(const std::string& aad);
+  std::shared_ptr<Decryptor> GetFooterDataDecryptor(const std::string& aad);
+  void EnsureColumnDecryptors(
       const std::string& column_path,
       const std::string& column_key_metadata,
-      const std::string& aad,
-      bool metadata = false);
+      const std::string& aad);
 };
 } // namespace bytedance::bolt::parquet::decryption

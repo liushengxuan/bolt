@@ -21,9 +21,8 @@ namespace bytedance::bolt::parquet::decryption {
 // static void CheckPageOrdinal(int32_t page_ordinal) {
 //   if (page_ordinal > std::numeric_limits<int16_t>::max()) {
 //     BOLT_FAIL(
-//         "Encrypted Parquet files can't have more than {}  pages per chunk: got {}",
-//         std::numeric_limits<int16_t>::max(),
-//         page_ordinal);
+//         "Encrypted Parquet files can't have more than {}  pages per chunk:
+//         got {}", std::numeric_limits<int16_t>::max(), page_ordinal);
 //   }
 // }
 
@@ -104,8 +103,7 @@ AesDecryptor::AesDecryptor(
   int keyLen = static_cast<int>(key.size());
   ctx_ = nullptr;
   lengthBufferLength_ = containsLength ? kBufferSizeLength : 0;
-  ciphertextSizeDelta_ =
-      lengthBufferLength_ + arrow::encryption::kNonceLength;
+  ciphertextSizeDelta_ = lengthBufferLength_ + arrow::encryption::kNonceLength;
   if (metadata || (ParquetCipher::AES_GCM_V1 == algId)) {
     aesMode_ = kGcmMode;
     ciphertextSizeDelta_ += arrow::encryption::kGcmTagLength;
@@ -177,16 +175,16 @@ int AesDecryptor::Decrypt(
   //     plaintext_len)
 
   const std::string key = get_key();
-  const std::string aad = file_aad();
+  const std::string module_aad = aad();
   const int keyLen = static_cast<int>(key.size());
-  const int aadLen = static_cast<int>(aad.size());
+  const int aadLen = static_cast<int>(module_aad.size());
   if (kGcmMode == aesMode_) {
     return GcmDecrypt(
         ciphertext,
         ciphertextLen,
         reinterpret_cast<const uint8_t*>(key.c_str()),
         keyLen,
-        reinterpret_cast<const uint8_t*>(aad.c_str()),
+        reinterpret_cast<const uint8_t*>(module_aad.c_str()),
         aadLen,
         plaintext,
         plaintextLen);

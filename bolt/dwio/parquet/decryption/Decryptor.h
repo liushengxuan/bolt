@@ -48,13 +48,17 @@ class Decryptor {
   const std::string& file_aad() const {
     return fileAad_;
   }
+
+  const std::string& aad() const {
+    return aad_;
+  }
+
   void UpdateAad(const std::string& aad) {
     aad_ = aad;
   }
   memory::MemoryPool* pool() {
     return pool_;
   }
-
 
   /// Size difference between plaintext and ciphertext, for this cipher.
   virtual int CiphertextSizeDelta() const = 0;

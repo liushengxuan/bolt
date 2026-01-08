@@ -24,3 +24,7 @@ target_link_libraries(
         bolt_exception
         arrow::arrow
         ${FMT})
+
+if(${BOLT_BUILD_TESTING})
+  add_subdirectory(test)
+endif()

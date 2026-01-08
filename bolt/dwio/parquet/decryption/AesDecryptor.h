@@ -18,16 +18,15 @@
 
 #include <cstring>
 
-
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
 #include "bolt/common/base/Exceptions.h"
-#include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
-#include "bolt/dwio/parquet/decryption/Decryptor.h"
 #include "bolt/dwio/parquet/arrow/Encryption.h"
+#include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
 #include "bolt/dwio/parquet/arrow/Types.h"
+#include "bolt/dwio/parquet/decryption/Decryptor.h"
 
 namespace bytedance::bolt::parquet::decryption {
 
@@ -66,8 +65,6 @@ class AesDecryptor : public Decryptor {
   //     int32_t max_encrypted_size,
   //     std::vector<std::weak_ptr<AesDecryptor>>* all_decryptors);
 
-  ~AesDecryptor();
-
   void WipeOut() {
     if (nullptr != ctx_) {
       EVP_CIPHER_CTX_free(ctx_);
@@ -94,7 +91,14 @@ class AesDecryptor : public Decryptor {
     return ciphertextSizeDelta_;
   };
 
-private:
+  ~AesDecryptor() {
+    if (nullptr != ctx_) {
+      EVP_CIPHER_CTX_free(ctx_);
+      ctx_ = nullptr;
+    }
+  }
+
+ private:
   int GcmDecrypt(
       const unsigned char* ciphertext,
       int ciphertextLen,
@@ -112,7 +116,6 @@ private:
       int keyLen,
       unsigned char* plaintext,
       int plaintextLen) const;
-
 
   // PIMPL Idiom
   EVP_CIPHER_CTX* ctx_;
