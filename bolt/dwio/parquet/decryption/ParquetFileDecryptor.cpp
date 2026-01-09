@@ -17,7 +17,6 @@
 // Partially inspired and adapted from Apache Arrow.
 
 #include "bolt/dwio/parquet/decryption/ParquetFileDecryptor.h"
-
 #include "bolt/dwio/parquet/decryption/AesDecryptor.h"
 
 namespace bytedance::bolt::parquet::decryption {

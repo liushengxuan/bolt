@@ -210,11 +210,6 @@ TEST(AesDecryptorTest, InvalidKeyLengthThrows) {
 
   EXPECT_THROW(
       parquet_decryption::AesDecryptor(
-          ParquetCipher::AES_GCM_V1,
-          true,
-          key,
-          fileAad,
-          moduleAad,
-          pool.get()),
+          ParquetCipher::AES_GCM_V1, true, key, fileAad, moduleAad, pool.get()),
       BoltRuntimeError);
 }
