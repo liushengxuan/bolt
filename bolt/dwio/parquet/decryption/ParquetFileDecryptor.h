@@ -30,9 +30,9 @@
 
 namespace bytedance::bolt::parquet::decryption {
 
-class InternalFileDecryptor {
+class ParquetFileDcryptor {
  public:
-  explicit InternalFileDecryptor(
+  explicit ParquetFileDcryptor(
       arrow::FileDecryptionProperties* properties,
       const std::string& fileAad,
       arrow::ParquetCipher::type algorithm,

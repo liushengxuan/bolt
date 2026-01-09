@@ -21,7 +21,7 @@
 
 namespace bytedance::bolt::parquet::decryption {
 
-InternalFileDecryptor::InternalFileDecryptor(
+ParquetFileDcryptor::ParquetFileDcryptor(
     arrow::FileDecryptionProperties* properties,
     const std::string& fileAad,
     arrow::ParquetCipher::type algorithm,
@@ -39,12 +39,12 @@ InternalFileDecryptor::InternalFileDecryptor(
   properties_->set_utilized();
 }
 
-std::shared_ptr<Decryptor> InternalFileDecryptor::getFooterDecryptor() {
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getFooterDecryptor() {
   std::string aad = arrow::encryption::CreateFooterAad(fileAad_);
   return getFooterMetadataDecryptor(aad);
 }
 
-void InternalFileDecryptor::ensureFooterDecryptors(const std::string& aad) {
+void ParquetFileDcryptor::ensureFooterDecryptors(const std::string& aad) {
   if (footerMetadataDecryptor_ != nullptr && footerDataDecryptor_ != nullptr) {
     footerMetadataDecryptor_->updateAad(aad);
     footerDataDecryptor_->updateAad(aad);
@@ -79,29 +79,29 @@ void InternalFileDecryptor::ensureFooterDecryptors(const std::string& aad) {
   footerDataDecryptor_ = aesDataDecryptor;
 }
 
-std::shared_ptr<Decryptor> InternalFileDecryptor::getFooterMetadataDecryptor(
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getFooterMetadataDecryptor(
     const std::string& aad) {
   ensureFooterDecryptors(aad);
   return footerMetadataDecryptor_;
 }
 
-std::shared_ptr<Decryptor> InternalFileDecryptor::getFooterDataDecryptor(
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getFooterDataDecryptor(
     const std::string& aad) {
   ensureFooterDecryptors(aad);
   return footerDataDecryptor_;
 }
 
-std::shared_ptr<Decryptor>
-InternalFileDecryptor::getFooterDecryptorForColumnData(const std::string& aad) {
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getFooterDecryptorForColumnData(
+    const std::string& aad) {
   return getFooterDataDecryptor(aad);
 }
 
-std::shared_ptr<Decryptor>
-InternalFileDecryptor::getFooterDecryptorForColumnMeta(const std::string& aad) {
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getFooterDecryptorForColumnMeta(
+    const std::string& aad) {
   return getFooterMetadataDecryptor(aad);
 }
 
-std::shared_ptr<Decryptor> InternalFileDecryptor::getColumnMetaDecryptor(
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getColumnMetaDecryptor(
     const std::string& columnPath,
     const std::string& columnKeyMetadata,
     const std::string& aad) {
@@ -109,7 +109,7 @@ std::shared_ptr<Decryptor> InternalFileDecryptor::getColumnMetaDecryptor(
   return columnMetadataMap_.at(columnPath);
 }
 
-std::shared_ptr<Decryptor> InternalFileDecryptor::getColumnDataDecryptor(
+std::shared_ptr<Decryptor> ParquetFileDcryptor::getColumnDataDecryptor(
     const std::string& columnPath,
     const std::string& columnKeyMetadata,
     const std::string& aad) {
@@ -117,7 +117,7 @@ std::shared_ptr<Decryptor> InternalFileDecryptor::getColumnDataDecryptor(
   return columnDataMap_.at(columnPath);
 }
 
-void InternalFileDecryptor::ensureColumnDecryptors(
+void ParquetFileDcryptor::ensureColumnDecryptors(
     const std::string& columnPath,
     const std::string& columnKeyMetadata,
     const std::string& aad) {

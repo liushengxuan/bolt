@@ -75,7 +75,7 @@ TEST(ParquetFileDecryptorTest, FooterDecryptorDecryptsAndCaches) {
                         .footer_key(footerKey)
                         ->build();
 
-  parquet_decryption::InternalFileDecryptor fileDecryptor(
+  parquet_decryption::ParquetFileDcryptor fileDecryptor(
       properties.get(), fileAad, ParquetCipher::AES_GCM_V1, "", pool.get());
 
   auto decryptor1 = fileDecryptor.getFooterDecryptor();
@@ -117,7 +117,7 @@ TEST(ParquetFileDecryptorTest, ColumnMetaDecryptorCachesAndUpdatesAad) {
                         ->column_keys(columnKeys)
                         ->build();
 
-  parquet_decryption::InternalFileDecryptor fileDecryptor(
+  parquet_decryption::ParquetFileDcryptor fileDecryptor(
       properties.get(), fileAad, ParquetCipher::AES_GCM_V1, "", pool.get());
 
   const std::string aad1 = parquet_arrow_encryption::CreateFooterAad(fileAad);
@@ -162,7 +162,7 @@ TEST(ParquetFileDecryptorTest, MissingColumnKeyThrows) {
                         .footer_key(footerKey)
                         ->build();
 
-  parquet_decryption::InternalFileDecryptor fileDecryptor(
+  parquet_decryption::ParquetFileDcryptor fileDecryptor(
       properties.get(), fileAad, ParquetCipher::AES_GCM_V1, "", pool.get());
 
   EXPECT_THROW(
