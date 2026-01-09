@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2025 ByteDance Ltd. and/or its affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include <gtest/gtest.h>
 
@@ -68,7 +83,6 @@ TEST(AesDecryptorTest, GcmRoundTripUsesModuleAad) {
   parquet_decryption::AesDecryptor decryptor(
       ParquetCipher::AES_GCM_V1,
       true,
-      0,
       key,
       fileAad,
       moduleAad,
@@ -76,7 +90,7 @@ TEST(AesDecryptorTest, GcmRoundTripUsesModuleAad) {
       true);
 
   std::vector<uint8_t> decrypted(plaintext.size());
-  const int decryptedLen = decryptor.Decrypt(
+  const int decryptedLen = decryptor.decrypt(
       ciphertext.data(),
       static_cast<int>(ciphertext.size()),
       decrypted.data(),
@@ -88,14 +102,13 @@ TEST(AesDecryptorTest, GcmRoundTripUsesModuleAad) {
   parquet_decryption::AesDecryptor wrongAadDecryptor(
       ParquetCipher::AES_GCM_V1,
       true,
-      0,
       key,
       fileAad,
       moduleAad + "x",
       pool.get(),
       true);
   EXPECT_THROW(
-      wrongAadDecryptor.Decrypt(
+      wrongAadDecryptor.decrypt(
           ciphertext.data(),
           static_cast<int>(ciphertext.size()),
           decrypted.data(),
@@ -105,7 +118,7 @@ TEST(AesDecryptorTest, GcmRoundTripUsesModuleAad) {
   auto tampered = ciphertext;
   tampered.back() ^= 0x01;
   EXPECT_THROW(
-      decryptor.Decrypt(
+      decryptor.decrypt(
           tampered.data(),
           static_cast<int>(tampered.size()),
           decrypted.data(),
@@ -127,11 +140,11 @@ TEST(AesDecryptorTest, UpdateAadAffectsGcmDecryption) {
       "bolt_dwio_parquet_decryption_test");
 
   parquet_decryption::AesDecryptor decryptor(
-      ParquetCipher::AES_GCM_V1, true, 0, key, fileAad, aad1, pool.get(), true);
+      ParquetCipher::AES_GCM_V1, true, key, fileAad, aad1, pool.get(), true);
 
   std::vector<uint8_t> decrypted(plaintext.size());
   EXPECT_EQ(
-      decryptor.Decrypt(
+      decryptor.decrypt(
           ciphertext.data(),
           static_cast<int>(ciphertext.size()),
           decrypted.data(),
@@ -139,9 +152,9 @@ TEST(AesDecryptorTest, UpdateAadAffectsGcmDecryption) {
       static_cast<int>(plaintext.size()));
   EXPECT_EQ(decrypted, plaintext);
 
-  decryptor.UpdateAad(aad2);
+  decryptor.updateAad(aad2);
   EXPECT_THROW(
-      decryptor.Decrypt(
+      decryptor.decrypt(
           ciphertext.data(),
           static_cast<int>(ciphertext.size()),
           decrypted.data(),
@@ -169,7 +182,6 @@ TEST(AesDecryptorTest, CtrRoundTripWithoutLengthBuffer) {
   parquet_decryption::AesDecryptor decryptor(
       ParquetCipher::AES_GCM_CTR_V1,
       false,
-      0,
       key,
       fileAad,
       moduleAad,
@@ -177,7 +189,7 @@ TEST(AesDecryptorTest, CtrRoundTripWithoutLengthBuffer) {
       false);
 
   std::vector<uint8_t> decrypted(plaintext.size());
-  const int decryptedLen = decryptor.Decrypt(
+  const int decryptedLen = decryptor.decrypt(
       ciphertext.data(),
       static_cast<int>(ciphertext.size()),
       decrypted.data(),
@@ -200,7 +212,6 @@ TEST(AesDecryptorTest, InvalidKeyLengthThrows) {
       parquet_decryption::AesDecryptor(
           ParquetCipher::AES_GCM_V1,
           true,
-          0,
           key,
           fileAad,
           moduleAad,

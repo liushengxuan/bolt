@@ -14,81 +14,18 @@
  * limitations under the License.
  */
 
+// Partially inspired and adapted from Apache Arrow.
+
 #include "bolt/dwio/parquet/decryption/AesDecryptor.h"
 
+#include <algorithm>
+#include <sstream>
+
 namespace bytedance::bolt::parquet::decryption {
-
-// static void CheckPageOrdinal(int32_t page_ordinal) {
-//   if (page_ordinal > std::numeric_limits<int16_t>::max()) {
-//     BOLT_FAIL(
-//         "Encrypted Parquet files can't have more than {}  pages per chunk:
-//         got {}", std::numeric_limits<int16_t>::max(), page_ordinal);
-//   }
-// }
-
-// static std::string ShortToBytesLe(int16_t input) {
-//   int8_t output[2];
-//   memset(output, 0, 2);
-//   output[1] = static_cast<int8_t>(0xff & (input >> 8));
-//   output[0] = static_cast<int8_t>(0xff & (input));
-//
-//   return std::string(reinterpret_cast<char const*>(output), 2);
-// }
-
-// std::string CreateFooterAad(const std::string& aadPrefixBytes) {
-//   return CreateModuleAad(
-//       aadPrefixBytes,
-//       arrow::encryption::kFooter,
-//       static_cast<int16_t>(-1),
-//       static_cast<int16_t>(-1),
-//       static_cast<int16_t>(-1));
-// }
-
-// Update last two bytes with new page ordinal (instead of creating new page AAD
-// from scratch)
-// void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad) {
-//   CheckPageOrdinal(newPageOrdinal);
-//   const std::string pageOrdinalBytes =
-//       ShortToBytesLe(static_cast<int16_t>(newPageOrdinal));
-//   std::memcpy(aad->data() + aad->length() - 2, pageOrdinalBytes.data(), 2);
-// }
-//
-// std::string CreateModuleAad(
-//     const std::string& fileAad,
-//     int8_t moduleType,
-//     int16_t rowGroupOrdinal,
-//     int16_t columnOrdinal,
-//     int32_t pageOrdinal) {
-//   CheckPageOrdinal(pageOrdinal);
-//   const int16_t pageOrdinalShort = static_cast<int16_t>(pageOrdinal);
-//   int8_t typeOrdinalBytes[1];
-//   typeOrdinalBytes[0] = moduleType;
-//   std::string typeOrdinalBytesStr(
-//       reinterpret_cast<char const*>(typeOrdinalBytes), 1);
-//   if (arrow::encryption::kFooter == moduleType) {
-//     std::string result = fileAad + typeOrdinalBytesStr;
-//     return result;
-//   }
-//   std::string rowGroupOrdinalBytes = ShortToBytesLe(rowGroupOrdinal);
-//   std::string columnOrdinalBytes = ShortToBytesLe(columnOrdinal);
-//   if (arrow::encryption::kDataPage != moduleType &&
-//       arrow::encryption::kDataPageHeader != moduleType) {
-//     std::ostringstream out;
-//     out << fileAad << typeOrdinalBytesStr << rowGroupOrdinalBytes
-//         << columnOrdinalBytes;
-//     return out.str();
-//   }
-//   std::string pageOrdinalBytes = ShortToBytesLe(pageOrdinalShort);
-//   std::ostringstream out;
-//   out << fileAad << typeOrdinalBytesStr << rowGroupOrdinalBytes
-//       << columnOrdinalBytes << pageOrdinalBytes;
-//   return out.str();
-// }
 
 AesDecryptor::AesDecryptor(
     ParquetCipher::type algId,
     bool metadata,
-    int32_t maxEncryptedSize,
     const std::string& key,
     const std::string& fileAad,
     const std::string& aad,
@@ -114,8 +51,6 @@ AesDecryptor::AesDecryptor(
   if (16 != keyLen && 24 != keyLen && 32 != keyLen) {
     BOLT_FAIL("Wrong key length: {}", keyLen);
   }
-
-  maxEncryptedSize_ = maxEncryptedSize;
 
   ctx_ = EVP_CIPHER_CTX_new();
   if (nullptr == ctx_) {
@@ -143,48 +78,23 @@ AesDecryptor::AesDecryptor(
   }
   // EVP_CIPHER_CTX_set_padding(ctx_, 0);
 }
-//
-// std::shared_ptr<AesDecryptor> AesDecryptor::Make(
-//     ParquetCipher::type alg_id,
-//     int key_len,
-//     bool metadata,
-//     int32_t max_encrypted_size,
-//     std::vector<std::weak_ptr<AesDecryptor>>* all_decryptors) {
-//   std::shared_ptr<AesDecryptor> decryptor = std::make_shared<AesDecryptor>(
-//       alg_id, key_len, metadata, max_encrypted_size);
-//
-//   if (all_decryptors != nullptr) {
-//     all_decryptors->push_back(decryptor);
-//   }
-//
-//   return decryptor;
-// }
 
-int AesDecryptor::Decrypt(
+int AesDecryptor::decrypt(
     const uint8_t* ciphertext,
     int ciphertextLen,
     uint8_t* plaintext,
     int plaintextLen) const {
-  // return Decrypt(      ciphertext,
-  //     ciphertext_len,
-  //     reinterpret_cast<const uint8_t*>(key_.c_str()),
-  //     static_cast<int>(key_.size()),
-  //     reinterpret_cast<const uint8_t*>(aad_.c_str()),
-  //     static_cast<int>(aad_.size()),
-  //     plaintext,
-  //     plaintext_len)
-
-  const std::string key = get_key();
-  const std::string module_aad = aad();
+  const std::string& key = this->key();
+  const std::string& moduleAad = aad();
   const int keyLen = static_cast<int>(key.size());
-  const int aadLen = static_cast<int>(module_aad.size());
+  const int aadLen = static_cast<int>(moduleAad.size());
   if (kGcmMode == aesMode_) {
     return GcmDecrypt(
         ciphertext,
         ciphertextLen,
         reinterpret_cast<const uint8_t*>(key.c_str()),
         keyLen,
-        reinterpret_cast<const uint8_t*>(module_aad.c_str()),
+        reinterpret_cast<const uint8_t*>(moduleAad.c_str()),
         aadLen,
         plaintext,
         plaintextLen);
@@ -352,11 +262,6 @@ int AesDecryptor::CtrDecrypt(
 
   auto decryptLen = ciphertextLen - arrow::encryption::kNonceLength;
   BOLT_CHECK(decryptLen <= plaintextLen, "plain text buffer too short");
-  bool left = false;
-  if (maxEncryptedSize_ != 0 && decryptLen >= maxEncryptedSize_) {
-    left = true;
-    decryptLen = maxEncryptedSize_;
-  }
 
   // Extracting nonce
   std::copy(
@@ -392,15 +297,6 @@ int AesDecryptor::CtrDecrypt(
   }
 
   writePlaintextLen += len;
-  if (left) {
-    std::copy(
-        ciphertext + lengthBufferLength_ + arrow::encryption::kNonceLength +
-            decryptLen,
-        ciphertext + ciphertextLen + lengthBufferLength_,
-        plaintext + writePlaintextLen);
-    writePlaintextLen +=
-        ciphertextLen - arrow::encryption::kNonceLength - decryptLen;
-  }
   return writePlaintextLen;
 }
 

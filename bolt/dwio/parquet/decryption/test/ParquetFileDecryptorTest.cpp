@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2025 ByteDance Ltd. and/or its affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <gtest/gtest.h>
 
 #include <memory>
@@ -62,9 +78,9 @@ TEST(ParquetFileDecryptorTest, FooterDecryptorDecryptsAndCaches) {
   parquet_decryption::InternalFileDecryptor fileDecryptor(
       properties.get(), fileAad, ParquetCipher::AES_GCM_V1, "", pool.get());
 
-  auto decryptor1 = fileDecryptor.GetFooterDecryptor();
+  auto decryptor1 = fileDecryptor.getFooterDecryptor();
   ASSERT_NE(decryptor1, nullptr);
-  auto decryptor2 = fileDecryptor.GetFooterDecryptor();
+  auto decryptor2 = fileDecryptor.getFooterDecryptor();
   ASSERT_NE(decryptor2, nullptr);
   EXPECT_EQ(decryptor1.get(), decryptor2.get());
 
@@ -74,7 +90,7 @@ TEST(ParquetFileDecryptorTest, FooterDecryptorDecryptsAndCaches) {
   const auto ciphertext = encryptGcm(plaintext, footerKey, moduleAad);
 
   std::vector<uint8_t> decrypted(plaintext.size());
-  const int decryptedLen = decryptor1->Decrypt(
+  const int decryptedLen = decryptor1->decrypt(
       ciphertext.data(),
       static_cast<int>(ciphertext.size()),
       decrypted.data(),
@@ -107,7 +123,7 @@ TEST(ParquetFileDecryptorTest, ColumnMetaDecryptorCachesAndUpdatesAad) {
   const std::string aad1 = parquet_arrow_encryption::CreateFooterAad(fileAad);
   const std::string aad2 = aad1 + "x";
 
-  auto decryptor1 = fileDecryptor.GetColumnMetaDecryptor("col", "", aad1);
+  auto decryptor1 = fileDecryptor.getColumnMetaDecryptor("col", "", aad1);
   ASSERT_NE(decryptor1, nullptr);
 
   const auto plaintext = toBytes("payload");
@@ -115,7 +131,7 @@ TEST(ParquetFileDecryptorTest, ColumnMetaDecryptorCachesAndUpdatesAad) {
   std::vector<uint8_t> decrypted(plaintext.size());
 
   EXPECT_EQ(
-      decryptor1->Decrypt(
+      decryptor1->decrypt(
           ciphertext.data(),
           static_cast<int>(ciphertext.size()),
           decrypted.data(),
@@ -123,12 +139,12 @@ TEST(ParquetFileDecryptorTest, ColumnMetaDecryptorCachesAndUpdatesAad) {
       static_cast<int>(plaintext.size()));
   EXPECT_EQ(decrypted, plaintext);
 
-  auto decryptor2 = fileDecryptor.GetColumnMetaDecryptor("col", "", aad2);
+  auto decryptor2 = fileDecryptor.getColumnMetaDecryptor("col", "", aad2);
   ASSERT_NE(decryptor2, nullptr);
   EXPECT_EQ(decryptor1.get(), decryptor2.get());
 
   EXPECT_THROW(
-      decryptor2->Decrypt(
+      decryptor2->decrypt(
           ciphertext.data(),
           static_cast<int>(ciphertext.size()),
           decrypted.data(),
@@ -150,6 +166,6 @@ TEST(ParquetFileDecryptorTest, MissingColumnKeyThrows) {
       properties.get(), fileAad, ParquetCipher::AES_GCM_V1, "", pool.get());
 
   EXPECT_THROW(
-      fileDecryptor.GetColumnDataDecryptor("missing", "", "aad"),
+      fileDecryptor.getColumnDataDecryptor("missing", "", "aad"),
       BoltRuntimeError);
 }

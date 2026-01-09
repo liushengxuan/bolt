@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
+// Partially inspired and adapted from Apache Arrow.
+
 #pragma once
 
 #include <cstring>
+
+#include <cstdint>
+#include <string>
 
 #include <openssl/aes.h>
 #include <openssl/evp.h>
@@ -43,53 +48,32 @@ class AesDecryptor : public Decryptor {
   explicit AesDecryptor(
       ParquetCipher::type algId,
       bool metadata,
-      int32_t maxEncryptedSize,
       const std::string& key,
       const std::string& fileAad,
       const std::string& aad,
       memory::MemoryPool* pool,
       bool containsLength = true);
-  //
-  // /// \brief Factory function to create an AesDecryptor.
-  // ///
-  // /// \param encryptionType the encryption algorithm to use.
-  // /// \param keyLen key length. Possible values: 16, 24, 32 bytes.
-  // /// \param hasMetadataDecryptor if true then this is a metadata decryptor.
-  // /// \param allDecryptors A weak reference to all decryptors that need to be
-  // /// wiped out when decryption is finished \return shared pointer to a new
-  // /// AesDecryptor.
-  // static std::shared_ptr<AesDecryptor> Make(
-  //     ::parquet::ParquetCipher::type alg_id,
-  //     int key_len,
-  //     bool metadata,
-  //     int32_t max_encrypted_size,
-  //     std::vector<std::weak_ptr<AesDecryptor>>* all_decryptors);
 
-  void WipeOut() {
+  void wipeOut() {
     if (nullptr != ctx_) {
       EVP_CIPHER_CTX_free(ctx_);
       ctx_ = nullptr;
     }
   }
 
-  /// \brief Get the size difference between plain text and crytped text.
-  int ciphertext_size_delta() {
-    return ciphertextSizeDelta_;
-  }
-
   /// \brief Decrypts crypted text with the key and aad. Key length is passed
   /// only for validation. If it is different from value from the  constructor,
   /// an exception would trigered.
 
-  int Decrypt(
+  int decrypt(
       const uint8_t* ciphertext,
       int ciphertextLen,
       uint8_t* plaintext,
       int plaintextLen) const override;
 
-  int CiphertextSizeDelta() const override {
+  int ciphertextSizeDelta() const override {
     return ciphertextSizeDelta_;
-  };
+  }
 
   ~AesDecryptor() {
     if (nullptr != ctx_) {
@@ -122,22 +106,6 @@ class AesDecryptor : public Decryptor {
   int aesMode_;
   int ciphertextSizeDelta_;
   int lengthBufferLength_;
-  int32_t maxEncryptedSize_;
 };
-
-// std::string CreateModuleAad(
-//     const std::string& fileAad,
-//     int8_t moduleType,
-//     int16_t rowGroupOrdinal,
-//     int16_t columnOrdinal,
-//     int32_t pageOrdinal);
-//
-// std::string CreateFooterAad(const std::string& aadPrefixBytes);
-
-// Update last two bytes of page (or page header) module AAD
-// void QuickUpdatePageAad(int32_t newPageOrdinal, std::string* aad);
-
-// Wraps OpenSSL RAND_bytes function
-// void RandBytes(unsigned char* buf, int num);
 
 } // namespace bytedance::bolt::parquet::decryption

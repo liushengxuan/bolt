@@ -14,11 +14,18 @@
  * limitations under the License.
  */
 
+// Partially inspired and adapted from Apache Arrow.
+
+#pragma once
+
+#include <map>
+#include <memory>
+#include <string>
+
 #include "bolt/common/memory/MemoryPool.h"
 #include "bolt/dwio/parquet/arrow/Encryption.h"
 #include "bolt/dwio/parquet/arrow/EncryptionInternal.h"
 #include "bolt/dwio/parquet/arrow/Types.h"
-#include "bolt/dwio/parquet/decryption/AesDecryptor.h"
 #include "bolt/dwio/parquet/decryption/Decryptor.h"
 
 namespace bytedance::bolt::parquet::decryption {
@@ -27,71 +34,69 @@ class InternalFileDecryptor {
  public:
   explicit InternalFileDecryptor(
       arrow::FileDecryptionProperties* properties,
-      const std::string& file_aad,
+      const std::string& fileAad,
       arrow::ParquetCipher::type algorithm,
-      const std::string& footer_key_metadata,
-      memory::MemoryPool* pool,
-      int32_t max_encrypted_size = 0);
+      const std::string& footerKeyMetadata,
+      memory::MemoryPool* pool);
 
-  std::string& file_aad() {
-    return file_aad_;
+  std::string& fileAad() {
+    return fileAad_;
   }
 
-  std::string GetFooterKey();
+  std::string getFooterKey();
 
   arrow::ParquetCipher::type algorithm() {
     return algorithm_;
   }
 
-  std::string& footer_key_metadata() {
-    return footer_key_metadata_;
+  std::string& footerKeyMetadata() {
+    return footerKeyMetadata_;
   }
 
   arrow::FileDecryptionProperties* properties() {
     return properties_;
   }
 
-  void WipeOutDecryptionKeys();
+  void wipeOutDecryptionKeys();
 
   memory::MemoryPool* pool() {
     return pool_;
   }
 
-  std::shared_ptr<Decryptor> GetFooterDecryptor();
-  std::shared_ptr<Decryptor> GetFooterDecryptorForColumnMeta(
+  std::shared_ptr<Decryptor> getFooterDecryptor();
+  std::shared_ptr<Decryptor> getFooterDecryptorForColumnMeta(
       const std::string& aad = "");
-  std::shared_ptr<Decryptor> GetFooterDecryptorForColumnData(
+  std::shared_ptr<Decryptor> getFooterDecryptorForColumnData(
       const std::string& aad = "");
-  std::shared_ptr<Decryptor> GetColumnMetaDecryptor(
-      const std::string& column_path,
-      const std::string& column_key_metadata,
+  std::shared_ptr<Decryptor> getColumnMetaDecryptor(
+      const std::string& columnPath,
+      const std::string& columnKeyMetadata,
       const std::string& aad = "");
-  std::shared_ptr<Decryptor> GetColumnDataDecryptor(
-      const std::string& column_path,
-      const std::string& column_key_metadata,
+  std::shared_ptr<Decryptor> getColumnDataDecryptor(
+      const std::string& columnPath,
+      const std::string& columnKeyMetadata,
       const std::string& aad = "");
 
  private:
   arrow::FileDecryptionProperties* properties_;
   // Concatenation of aad_prefix (if exists) and aad_file_unique
-  std::string file_aad_;
-  std::map<std::string, std::shared_ptr<Decryptor>> column_data_map_;
-  std::map<std::string, std::shared_ptr<Decryptor>> column_metadata_map_;
+  std::string fileAad_;
+  std::map<std::string, std::shared_ptr<Decryptor>> columnDataMap_;
+  std::map<std::string, std::shared_ptr<Decryptor>> columnMetadataMap_;
 
-  std::shared_ptr<Decryptor> footer_metadata_decryptor_;
-  std::shared_ptr<Decryptor> footer_data_decryptor_;
+  std::shared_ptr<Decryptor> footerMetadataDecryptor_;
+  std::shared_ptr<Decryptor> footerDataDecryptor_;
   arrow::ParquetCipher::type algorithm_;
-  std::string footer_key_metadata_;
+  std::string footerKeyMetadata_;
 
   memory::MemoryPool* pool_;
-  int32_t max_encrypted_size_;
 
-  void EnsureFooterDecryptors(const std::string& aad);
-  std::shared_ptr<Decryptor> GetFooterMetadataDecryptor(const std::string& aad);
-  std::shared_ptr<Decryptor> GetFooterDataDecryptor(const std::string& aad);
-  void EnsureColumnDecryptors(
-      const std::string& column_path,
-      const std::string& column_key_metadata,
+  void ensureFooterDecryptors(const std::string& aad);
+  std::shared_ptr<Decryptor> getFooterMetadataDecryptor(const std::string& aad);
+  std::shared_ptr<Decryptor> getFooterDataDecryptor(const std::string& aad);
+  void ensureColumnDecryptors(
+      const std::string& columnPath,
+      const std::string& columnKeyMetadata,
       const std::string& aad);
 };
 } // namespace bytedance::bolt::parquet::decryption

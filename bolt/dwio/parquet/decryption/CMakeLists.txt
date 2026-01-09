@@ -14,16 +14,17 @@
 # limitations under the License.
 
 add_library(
-        bolt_dwio_parquet_decryption
-        ParquetFileDecryptor.cpp
-        AesDecryptor.cpp
+  bolt_dwio_parquet_decryption
+  ParquetFileDecryptor.cpp
+  AesDecryptor.cpp
 )
 
 target_link_libraries(
-        bolt_dwio_parquet_decryption
-        bolt_exception
-        arrow::arrow
-        ${FMT})
+  bolt_dwio_parquet_decryption
+  bolt_exception
+  arrow::arrow
+  ${FMT}
+)
 
 if(${BOLT_BUILD_TESTING})
   add_subdirectory(test)

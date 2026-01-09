@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
+// Partially inspired and adapted from Apache Arrow.
+
 #pragma once
+
+#include <cstdint>
+#include <string>
 
 #include "bolt/common/base/Exceptions.h"
 #include "bolt/common/memory/MemoryPool.h"
@@ -41,11 +46,11 @@ class Decryptor {
       memory::MemoryPool* pool)
       : key_(key), fileAad_(fileAad), aad_(aad), pool_(pool) {}
 
-  const std::string& get_key() const {
+  const std::string& key() const {
     return key_;
   }
 
-  const std::string& file_aad() const {
+  const std::string& fileAad() const {
     return fileAad_;
   }
 
@@ -53,7 +58,7 @@ class Decryptor {
     return aad_;
   }
 
-  void UpdateAad(const std::string& aad) {
+  void updateAad(const std::string& aad) {
     aad_ = aad;
   }
   memory::MemoryPool* pool() {
@@ -61,13 +66,13 @@ class Decryptor {
   }
 
   /// Size difference between plaintext and ciphertext, for this cipher.
-  virtual int CiphertextSizeDelta() const = 0;
+  virtual int ciphertextSizeDelta() const = 0;
 
-  virtual int Decrypt(
+  virtual int decrypt(
       const uint8_t* ciphertext,
-      int ciphertext_len,
+      int ciphertextLen,
       uint8_t* plaintext,
-      int plaintext_len) const = 0;
+      int plaintextLen) const = 0;
 
  private:
   std::string key_;
