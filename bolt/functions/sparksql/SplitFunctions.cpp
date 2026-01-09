@@ -213,11 +213,11 @@ std::shared_ptr<exec::VectorFunction> createSplit(
     }
   } else {
     if (inputArgs.size() == 3 && inputArgs[2].constantValue.get()) {
-      return std::make_shared<Split<false, true, true>>(pattern, limit);
       limit = inputArgs[2]
                   .constantValue.get()
                   ->as<ConstantVector<int32_t>>()
                   ->valueAt(0);
+      return std::make_shared<Split<false, true, true>>(pattern, limit);
     } else {
       return std::make_shared<Split<false, false, true>>(pattern, limit);
     }

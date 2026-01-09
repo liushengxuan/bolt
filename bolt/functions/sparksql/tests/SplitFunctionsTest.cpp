@@ -58,8 +58,10 @@ void SplitTest::testSplit(
   // Creating vectors for input strings
   auto nullAt = [&input](vector_size_t row) { return !input[row].has_value(); };
 
-  auto resultFunc = [&](bool constPattern) {
-    SCOPED_TRACE("Run with constPattern: " + std::to_string(constPattern));
+  auto resultFunc = [&](bool constPattern, bool constLimit) {
+    SCOPED_TRACE(
+        "Run with constPattern: " + std::to_string(constPattern) +
+        ", constLimit: " + std::to_string(constLimit));
     auto inputString =
         makeFlatVector<StringView>(input.size(), valueAt, nullAt);
 
@@ -74,10 +76,14 @@ void SplitTest::testSplit(
 
     // Evaluating the function for each input and seed
     std::string expressionString;
-    if (constPattern) {
+    if (constPattern && constLimit) {
       expressionString = fmt::format(
           "split(c0, '{}', CAST({} AS INT))", pattern, limit.value_or(-1));
+    } else if (constLimit) {
+      expressionString =
+          fmt::format("split(c0, c1, CAST({} AS INT))", limit.value_or(-1));
     } else {
+      BOLT_CHECK(!constPattern, "split(c0, 'constPattern', c1) is invalid");
       expressionString = "split(c0, c1, c2)";
     }
     // TODO: if (!limit.has_value()), test -1 column
@@ -117,8 +123,9 @@ void SplitTest::testSplit(
       output.size(), sizeAtOutput, valueAtOutput, nullAtOutput);
 
   // Checking the results
-  assertEqualVectors(expectedResult, resultFunc(true));
-  assertEqualVectors(expectedResult, resultFunc(false));
+  assertEqualVectors(expectedResult, resultFunc(true, true));
+  assertEqualVectors(expectedResult, resultFunc(false, true));
+  assertEqualVectors(expectedResult, resultFunc(false, false));
 }
 
 TEST_F(SplitTest, reallocationAndCornerCases) {
