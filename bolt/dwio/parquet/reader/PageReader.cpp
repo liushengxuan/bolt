@@ -40,6 +40,8 @@
 #include "bolt/dwio/parquet/reader/NestedStructureDecoder.h"
 #include "bolt/dwio/parquet/reader/PageReader.h"
 #include "bolt/dwio/parquet/thrift/ThriftTransport.h"
+#include "bolt/dwio/parquet/thrift/ThriftInternal.h"
+
 #include "bolt/vector/FlatVector.h"
 namespace bytedance::bolt::parquet {
 
@@ -62,6 +64,13 @@ void PageReader::seekToPage(int64_t row, bool keepRepDefRawData) {
     PageHeader pageHeader = readPageHeader();
     pageStart_ = pageDataStart_ + pageHeader.compressed_page_size;
 
+    if (cryptoCtx_.data_decryptor != nullptr) {
+      UpdateDecryption(
+          cryptoCtx_.data_decryptor,
+          arrow::encryption::kDictionaryPage,
+          &data_page_aad_);
+    }
+
     switch (pageHeader.type) {
       case thrift::PageType::DATA_PAGE:
         prepareDataPageV1(pageHeader, row, keepRepDefRawData);
@@ -76,6 +85,7 @@ void PageReader::seekToPage(int64_t row, bool keepRepDefRawData) {
               inputStream_.get(),
               bufferStart_,
               bufferEnd_);
+          cryptoCtx_.start_decrypt_with_dictionary_page = false;
           continue;
         }
         prepareDictionary(pageHeader);
@@ -101,13 +111,78 @@ PageHeader PageReader::readPageHeader() {
 
   PageHeader pageHeader;
   uint64_t readBytes;
-  std::shared_ptr<thrift::ThriftTransport> transport =
-      std::make_shared<thrift::ThriftStreamingTransport>(
-          inputStream_.get(), bufferStart_, bufferEnd_);
-  apache::thrift::protocol::TCompactProtocolT<thrift::ThriftTransport> protocol(
-      transport);
-  readBytes = pageHeader.read(&protocol);
+if (cryptoCtx_.meta_decryptor != nullptr) {
+    thrift::ThriftDeserializer deserializer;
+    UpdateDecryption(
+        cryptoCtx_.meta_decryptor,
+        arrow::encryption::kDictionaryPageHeader,
+        &data_page_header_aad_);
+    uint32_t encryptedBufferSize = bufferEnd_ - bufferStart_;
+    uint8_t* encryptedBufferStart =
+        const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(bufferStart_));
+    uint32_t header_size = encryptedBufferSize;
+    bool reallocate = false;
+    auto decryptBufferGuard = folly::makeGuard([&]() {
+      if (reallocate) {
+        pool_.free(encryptedBufferStart, encryptedBufferSize);
+      }
+    });
 
+    while (true) {
+      header_size = encryptedBufferSize;
+      if (header_size > cryptoCtx_.meta_decryptor->ciphertextSizeDelta()) {
+        try {
+          bool ret = deserializer.DeserializeMessage(
+              encryptedBufferStart,
+              &header_size,
+              &pageHeader,
+              cryptoCtx_.meta_decryptor);
+          if (ret) {
+            break;
+          }
+        } catch (const BoltRuntimeError& e) {
+          BOLT_CHECK(
+              encryptedBufferSize <= kDefaultMaxPageHeaderSize,
+              "Failed to decrypt page header with page header more than 16MB, failed reason: {}",
+              e.message());
+        }
+      }
+
+      // inputStream_->Next may change the content in buffer, so do redudant
+      // allocate and copy from buffer when first decrypt failed before reading
+      // from inputstream
+      if (!reallocate) {
+        encryptedBufferStart =
+            reinterpret_cast<uint8_t*>(pool_.allocate(encryptedBufferSize));
+        memcpy(encryptedBufferStart, bufferStart_, encryptedBufferSize);
+      }
+
+      reallocate = true;
+      int32_t size;
+      if (!inputStream_->Next(
+              reinterpret_cast<const void**>(&bufferStart_), &size)) {
+        BOLT_FAIL("readPageHeader() reading past the end of the stream");
+      }
+      bufferEnd_ = bufferStart_ + size;
+
+      encryptedBufferStart = reinterpret_cast<uint8_t*>(pool_.reallocate(
+          encryptedBufferStart,
+          encryptedBufferSize,
+          encryptedBufferSize + size));
+
+      memcpy(encryptedBufferStart + encryptedBufferSize, bufferStart_, size);
+      encryptedBufferSize += size;
+    }
+    readBytes = header_size;
+    bufferStart_ = bufferEnd_ - (encryptedBufferSize - header_size);
+  } else {
+    std::shared_ptr<thrift::ThriftTransport> transport =
+        std::make_shared<thrift::ThriftStreamingTransport>(
+            inputStream_.get(), bufferStart_, bufferEnd_);
+    apache::thrift::protocol::TCompactProtocolT<thrift::ThriftTransport> protocol(
+        transport);
+    readBytes = pageHeader.read(&protocol);
+  }
   pageDataStart_ = pageStart_ + readBytes;
   return pageHeader;
 }
@@ -233,6 +308,7 @@ void PageReader::prepareDataPageV1(
   BOLT_CHECK(
       pageHeader.type == thrift::PageType::DATA_PAGE &&
       pageHeader.__isset.data_page_header);
+  ++page_ordinal_;
   numRepDefsInPage_ = pageHeader.data_page_header.num_values;
   setPageRowInfo(row == kRepDefOnly);
   if (row != kRepDefOnly && numRowsInPage_ != kRowsUnknown &&
@@ -246,7 +322,13 @@ void PageReader::prepareDataPageV1(
     return;
   }
 
-  pageData_ = readBytes(pageHeader.compressed_page_size, pageBuffer_);
+
+  int32_t compressedLen = pageHeader.compressed_page_size;
+  pageData_ = readBytes(compressedLen, pageBuffer_);
+  if (cryptoCtx_.data_decryptor != nullptr) {
+    decryptPageData(compressedLen);
+  }
+
   pageData_ = decompressData(
       pageData_,
       pageHeader.compressed_page_size,
@@ -324,6 +406,8 @@ void PageReader::prepareDataPageV2(
     const bool keepRepDefRawData) {
   BOLT_CHECK(pageHeader.__isset.data_page_header_v2);
 
+  ++page_ordinal_;
+
   numRepDefsInPage_ = pageHeader.data_page_header_v2.num_values;
   setPageRowInfo(row == kRepDefOnly);
   if (row != kRepDefOnly && numRowsInPage_ != kRowsUnknown &&
@@ -344,6 +428,10 @@ void PageReader::prepareDataPageV2(
       : 0;
   auto bytes = pageHeader.compressed_page_size;
   pageData_ = readBytes(bytes, pageBuffer_);
+
+  if (cryptoCtx_.data_decryptor != nullptr) {
+    decryptPageData(bytes);
+  }
 
   if (row == kRepDefOnly && keepRepDefRawData) {
     BOLT_CHECK(defineLength > 0 && repeatLength > 0);
@@ -418,12 +506,22 @@ void PageReader::prepareDictionary(const PageHeader& pageHeader) {
       dictionaryEncoding_ == Encoding::PLAIN_DICTIONARY ||
       dictionaryEncoding_ == Encoding::PLAIN);
 
+  cryptoCtx_.start_decrypt_with_dictionary_page = false;
+  int32_t compressedLen = pageHeader.compressed_page_size;
+  int32_t uncompressedLen = pageHeader.uncompressed_page_size;
+
   if (codec_ != thrift::CompressionCodec::UNCOMPRESSED) {
-    pageData_ = readBytes(pageHeader.compressed_page_size, pageBuffer_);
+    pageData_ = readBytes(compressedLen, pageBuffer_);
+    if (cryptoCtx_.data_decryptor != nullptr) {
+      decryptPageData(compressedLen);
+    }
     pageData_ = decompressData(
-        pageData_,
-        pageHeader.compressed_page_size,
-        pageHeader.uncompressed_page_size);
+        pageData_, compressedLen, pageHeader.uncompressed_page_size);
+  } else {
+    if (cryptoCtx_.data_decryptor != nullptr) {
+      pageData_ = readBytes(uncompressedLen, pageBuffer_);
+      decryptPageData(uncompressedLen);
+    }
   }
 
   auto parquetType = type_->parquetType_.value();
@@ -682,6 +780,7 @@ void PageReader::preloadPageRepDefs(const bool keepRepDefRawData) {
 
 void PageReader::preloadRepDefs() {
   hasChunkRepDefs_ = true;
+  bool startWithDictinoaryPage = cryptoCtx_.start_decrypt_with_dictionary_page;
   if (maxRepeat_ > 0 && maxDefine_ > 0) {
     const int32_t samplePages = decodeRepDefPageCount_;
     int32_t pageCnt = 0;
@@ -737,6 +836,9 @@ void PageReader::preloadRepDefs() {
   rowOfPage_ = 0;
   numRowsInPage_ = 0;
   pageData_ = nullptr;
+  page_ordinal_ = 0;
+  cryptoCtx_.start_decrypt_with_dictionary_page = startWithDictinoaryPage;
+
   totalRefDefBytes_ = 0;
 }
 
@@ -1343,6 +1445,27 @@ const VectorPtr& PageReader::dictionaryValues(const TypePtr& type) {
     }
   }
   return dictionaryValues_;
+}
+
+void PageReader::decryptPageData(int32_t& compressedLen) {
+  auto numElements =
+      compressedLen - cryptoCtx_.data_decryptor->ciphertextSizeDelta();
+  auto alignment = pool_.alignment();
+  if (numElements % alignment != 0) {
+    numElements += alignment - numElements % alignment;
+  }
+  if (decryption_buffer_) {
+    AlignedBuffer::reallocate<uint8_t>(&decryption_buffer_, numElements);
+  } else {
+    decryption_buffer_ = AlignedBuffer::allocate<uint8_t>(numElements, &pool_);
+  }
+
+  compressedLen = cryptoCtx_.data_decryptor->decrypt(
+      reinterpret_cast<const uint8_t*>(pageData_),
+      compressedLen,
+      const_cast<uint8_t*>(decryption_buffer_->as<uint8_t>()),
+      decryption_buffer_->size());
+  pageData_ = decryption_buffer_->as<char>();
 }
 
 } // namespace bytedance::bolt::parquet

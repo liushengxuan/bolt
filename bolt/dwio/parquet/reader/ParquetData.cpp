@@ -45,6 +45,7 @@ std::unique_ptr<dwio::common::FormatData> ParquetParams::toFormatData(
       type,
       metaData_.row_groups,
       pool(),
+      fileDecryptor_,
       scanSpec.getRuntimeStatistics(),
       schemaHelper_,
       enableDictionaryFilter_,
@@ -352,6 +353,8 @@ dwio::common::PositionProvider ParquetData::seekToRowGroup(int64_t index) {
   BOLT_CHECK_LT(index, streams_.size());
   BOLT_CHECK(streams_[index], "Stream not enqueued for column");
   auto& metadata = rowGroups_[index].columns[type_->column()].meta_data;
+  auto& columnChunkMetaData = rowGroups_[index].columns[type_->column()];
+
   reader_ = std::make_unique<PageReader>(
       std::move(streams_[index]),
       pool_,
@@ -362,6 +365,46 @@ dwio::common::PositionProvider ParquetData::seekToRowGroup(int64_t index) {
   reader_->setDecodeRepDefPageCount(decodeRepDefPageCount_);
   reader_->setParquetRepDefMemoryLimit(parquetRepDefMemoryLimit_);
 
+  if (columnChunkMetaData.__isset.crypto_metadata) {
+    // BOLT_CHECK_NE(fileDecryptor_, nullptr);
+    std::shared_ptr<decryption::Decryptor> metaDecryptor;
+    std::shared_ptr<decryption::Decryptor> dataDecryptor;
+
+    auto& crypto_metadata = columnChunkMetaData.crypto_metadata;
+    if (crypto_metadata.__isset.ENCRYPTION_WITH_FOOTER_KEY) {
+      metaDecryptor = fileDecryptor_->getFooterDecryptorForColumnMeta();
+      dataDecryptor = fileDecryptor_->getFooterDecryptorForColumnData();
+    } else {
+      auto toDotString = [&](const std::vector<std::string>& path) {
+        std::stringstream ss;
+        for (auto it = path.cbegin(); it != path.cend(); ++it) {
+          if (it != path.cbegin()) {
+            ss << ".";
+          }
+          ss << *it;
+        }
+        return ss.str();
+      };
+
+      const std::string& column_key_metadata =
+          crypto_metadata.ENCRYPTION_WITH_COLUMN_KEY.key_metadata;
+      const std::string column_path = toDotString(
+          crypto_metadata.ENCRYPTION_WITH_COLUMN_KEY.path_in_schema);
+      metaDecryptor = fileDecryptor_->getColumnMetaDecryptor(
+          column_path, column_key_metadata);
+      dataDecryptor = fileDecryptor_->getColumnDataDecryptor(
+          column_path, column_key_metadata);
+    }
+    auto& ctx = reader_->getCryptoContext();
+    ctx.start_decrypt_with_dictionary_page =
+        metadata.__isset.dictionary_page_offset;
+    ctx.row_group_ordinal = index;
+    ctx.column_ordinal = type_->column();
+    ctx.meta_decryptor = std::move(metaDecryptor);
+    ctx.data_decryptor = std::move(dataDecryptor);
+    reader_->InitDecryption();
+  }
+  
   return dwio::common::PositionProvider(empty);
 }
 

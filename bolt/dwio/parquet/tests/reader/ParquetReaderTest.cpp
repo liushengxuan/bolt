@@ -41,6 +41,8 @@ using namespace bytedance::bolt;
 using namespace bytedance::bolt::common;
 using namespace bytedance::bolt::dwio::common;
 using namespace bytedance::bolt::parquet;
+namespace parquet_arrow = bytedance::bolt::parquet::arrow;
+namespace parquet_decryption = bytedance::bolt::parquet::decryption;
 
 class ParquetReaderTest : public ParquetTestBase {
  public:
@@ -1086,6 +1088,69 @@ TEST_F(ParquetReaderTest, arrayWithEmptyEntry) {
   rowReader->next(7, result);
   assertEqualVectorPart(expected, result, 0);
 }
+
+// This test has been disabled, but it is still useful to test
+// LoadFileMetaData() especially getKmsMetadata() with encrpyted footer. To test
+// getKmsMetadata(): (1) enable this test (2) set up the breakpoints. The test
+// cannot sucessfully run through the whole LoadFileMetadat() because the
+// following line will invoke the KmsClient to call Kms server which is not
+// reachable from the devbox auto decryptor =
+// fileDecryptor_->GetFooterDecryptor();
+TEST_F(ParquetReaderTest, decryptionSimple) {
+  const std::string footerKey(16, 'k');
+  const std::string fileAad(8, 'f');
+  auto properties = parquet_arrow::FileDecryptionProperties::Builder()
+                        .footer_key(footerKey)
+                        ->build();
+
+
+  parquet_decryption::ParquetFileDcryptor fileDecryptor(
+      properties.get(), fileAad, ParquetCipher::AES_GCM_V1, "", leafPool_.get());
+
+
+
+
+  auto rowType =
+      ROW({"id", "f_str", "f_int"}, {INTEGER(), VARCHAR(), INTEGER()});
+  bytedance::bolt::dwio::common::ReaderOptions readerOpts{leafPool_.get()};
+
+  auto cryptoFactory = std::make_shared<::parquet::encryption::CryptoFactory>();
+  readerOpts.setDecrypterFactory(std::move(cryptoFactory));
+
+  auto decryptionConf_ =
+      std::make_shared<::parquet::encryption::DecryptionConfiguration>();
+  readerOpts.setDecryptionConf(decryptionConf_);
+  const std::string encryption_data = getExampleFilePath("encrypted.parquet");
+
+  auto reader = createReader(encryption_data, readerOpts);
+  RowReaderOptions rowReaderOpts;
+  rowReaderOpts.setScanSpec(makeScanSpec(rowType));
+  auto rowReader = reader->createRowReader(rowReaderOpts);
+
+  // EXPECT_EQ(reader->numberOfRows(), 1ULL);
+
+  auto type = reader->typeWithId();
+  // EXPECT_EQ(type->size(), 3ULL);
+  auto col0 = type->childAt(0);
+  auto col1 = type->childAt(1);
+  auto col2 = type->childAt(2);
+  // EXPECT_EQ(col0->type()->kind(), TypeKind::INTEGER);
+  // EXPECT_EQ(col1->type()->kind(), TypeKind::VARCHAR);
+  // EXPECT_EQ(col2->type()->kind(), TypeKind::INTEGER);
+
+  auto result = BaseVector::create(rowType, 1, pool_.get());
+  rowReader->next(1, result);
+  EXPECT_EQ(result->size(), 1ULL);
+  auto resultRow = result->as<RowVector>();
+  auto a = resultRow->childAt(0)->asFlatVector<int>()->rawValues();
+  auto b = resultRow->childAt(1)->asFlatVector<StringView>()->rawValues();
+  auto c = resultRow->childAt(2)->asFlatVector<int>()->rawValues();
+
+  EXPECT_EQ(a[0], 11111);
+  EXPECT_EQ(std::string(b[0].data()), std::string("abcdefg"));
+  EXPECT_EQ(c[0], 22222);
+}
+
 TEST_F(ParquetReaderTest, readBinaryAsStringFromNation) {
   const std::string filename("nation.parquet");
   const std::string sample(getExampleFilePath(filename));

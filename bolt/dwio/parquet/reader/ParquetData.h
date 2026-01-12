@@ -38,6 +38,8 @@
 #include "bolt/dwio/parquet/reader/Statistics.h"
 #include "bolt/dwio/parquet/thrift/ThriftTransport.h"
 #include "bolt/dwio/parquet/thrift/codegen/parquet_types.h"
+#include "bolt/dwio/parquet/decryption/ParquetFileDecryptor.h"
+
 namespace bytedance::bolt::common {
 class ScanSpec;
 } // namespace bytedance::bolt::common
@@ -53,6 +55,7 @@ class ParquetParams : public dwio::common::FormatParams {
       dwio::common::ColumnReaderStatistics& stats,
       const thrift::FileMetaData& metaData,
       TimestampPrecision timestampPrecision,
+      const std::shared_ptr<decryption::ParquetFileDcryptor>& fileDecryptor,
       const SchemaHelper& schemaHelper,
       bool enableDictionaryFilter,
       int32_t decodeRepDefPageCount,
@@ -60,6 +63,7 @@ class ParquetParams : public dwio::common::FormatParams {
       : FormatParams(pool, stats),
         metaData_(metaData),
         timestampPrecision_(timestampPrecision),
+        fileDecryptor_(fileDecryptor),
         schemaHelper_(schemaHelper),
         enableDictionaryFilter_(enableDictionaryFilter),
         decodeRepDefPageCount_(decodeRepDefPageCount),
@@ -80,6 +84,7 @@ class ParquetParams : public dwio::common::FormatParams {
  private:
   const thrift::FileMetaData& metaData_;
   const TimestampPrecision timestampPrecision_;
+  const std::shared_ptr<decryption::ParquetFileDcryptor>& fileDecryptor_;
   const SchemaHelper& schemaHelper_;
   const bool enableDictionaryFilter_;
   const int32_t decodeRepDefPageCount_;
@@ -93,6 +98,7 @@ class ParquetData : public dwio::common::FormatData {
       const std::shared_ptr<const dwio::common::TypeWithId>& type,
       const std::vector<thrift::RowGroup>& rowGroups,
       memory::MemoryPool& pool,
+      const std::shared_ptr<decryption::ParquetFileDcryptor>& fileDecryptor,
       dwio::common::RuntimeStatistics* statis,
       const SchemaHelper& schemaHelper,
       bool enableDictionaryFilter,
@@ -104,6 +110,7 @@ class ParquetData : public dwio::common::FormatData {
         maxDefine_(type_->maxDefine_),
         maxRepeat_(type_->maxRepeat_),
         rowsInRowGroup_(-1),
+        fileDecryptor_(fileDecryptor),
         statis_(statis),
         schemaHelper_(schemaHelper),
         enableDictionaryFilter_(enableDictionaryFilter),
@@ -288,6 +295,8 @@ class ParquetData : public dwio::common::FormatData {
 
   // Count of leading skipped positions in 'presetNulls_'
   int32_t presetNullsConsumed_{0};
+
+  const std::shared_ptr<decryption::ParquetFileDcryptor> fileDecryptor_;
 
   dwio::common::RuntimeStatistics* statis_{nullptr};
   const SchemaHelper& schemaHelper_;

@@ -21,6 +21,7 @@ add_library(
 
 target_link_libraries(
   bolt_dwio_parquet_decryption
+  bolt_dwio_parquet_thrift
   bolt_exception
   arrow::arrow
   ${FMT}
