@@ -280,6 +280,7 @@ void ReaderBase::loadFileMetaData() {
   uint32_t fileMetadataLen = footerLength;
   std::vector<char> decryptedBuffer;
   if (isEncryptedFooter) {
+    fileDecryptionProperties_ = options_.getFileDecryptionPropertiesBuilder().build();
     // Encrypted file with Encrypted footer.
     uint32_t cryptoMetadataLen =
         ParseMetaDataOfEncryptedFileWithEncryptedFooter(

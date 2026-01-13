@@ -31,6 +31,9 @@
 
 #pragma once
 
+#include <boost/process/detail/posix/executor.hpp>
+
+
 #include <limits>
 #include <unordered_set>
 
@@ -47,6 +50,10 @@
 #include "bolt/dwio/common/InputStream.h"
 #include "bolt/dwio/common/ScanSpec.h"
 #include "bolt/dwio/common/encryption/Encryption.h"
+#include "dwio/parquet/arrow/Encryption.h"
+#include "bolt/dwio/parquet/arrow/Encryption.h"
+#include "connectors/hive/storage_adapters/hdfs/tests/HdfsMiniCluster.h"
+
 namespace bytedance::bolt::dwio::common {
 
 enum class FileFormat {
@@ -547,6 +554,7 @@ class ReaderOptions : public io::ReaderOptions {
   bool useColumnNamesForColumnMapping_{false};
   bool useNestedColumnNamesForColumnMapping_{false};
   std::shared_ptr<folly::Executor> ioExecutor_;
+  parquet::arrow::FileDecryptionProperties::Builder fileDecryptionPropertiesBuilder_;
 
  public:
   static constexpr uint64_t kDefaultFooterEstimatedSize = 1024 * 1024; // 1MB
@@ -574,6 +582,7 @@ class ReaderOptions : public io::ReaderOptions {
     filePreloadThreshold = other.filePreloadThreshold;
     fileColumnNamesReadAsLowerCase = other.fileColumnNamesReadAsLowerCase;
     useColumnNamesForColumnMapping_ = other.useColumnNamesForColumnMapping_;
+    fileDecryptionPropertiesBuilder_ = other.fileDecryptionPropertiesBuilder_;
     return *this;
   }
 
@@ -587,7 +596,8 @@ class ReaderOptions : public io::ReaderOptions {
         footerEstimatedSize(other.footerEstimatedSize),
         filePreloadThreshold(other.filePreloadThreshold),
         fileColumnNamesReadAsLowerCase(other.fileColumnNamesReadAsLowerCase),
-        useColumnNamesForColumnMapping_(other.useColumnNamesForColumnMapping_) {
+        useColumnNamesForColumnMapping_(other.useColumnNamesForColumnMapping_),
+        fileDecryptionPropertiesBuilder_(other.fileDecryptionPropertiesBuilder_) {
   }
 
   /**
@@ -663,6 +673,22 @@ class ReaderOptions : public io::ReaderOptions {
     return *this;
   }
 
+  // Set default Footer Key for Parquet Decryption. If the Footer Key is empty,
+  // the decryptor would invoke the key retriever callback functions to get the
+  // Footer Key.
+  ReaderOptions& setFooterDecryptionKey(std::string footerKey) {
+    fileDecryptionPropertiesBuilder_.footer_key(footerKey);
+    return *this;
+  }
+
+  // Set default Column Keys for Parquet Decryption. If the Column Keys are
+  // empty, the decryptor would invoke the key retriever callback functions
+  // to get the Column Keys.
+  ReaderOptions& setFooterColumnKeys(bytedance::bolt::parquet::arrow::ColumnPathToDecryptionPropertiesMap &columnsKeys) {
+    fileDecryptionPropertiesBuilder_.column_keys(columnsKeys);
+    return *this;
+  }
+
   /**
    * Get the desired tail location.
    * @return if not set, return the maximum long.
@@ -704,6 +730,10 @@ class ReaderOptions : public io::ReaderOptions {
 
   uint64_t getFilePreloadThreshold() const {
     return filePreloadThreshold;
+  }
+
+  parquet::arrow::FileDecryptionProperties::Builder getFileDecryptionPropertiesBuilder() const {
+    return fileDecryptionPropertiesBuilder_;
   }
 
   const std::shared_ptr<folly::Executor>& getIOExecutor() const {
