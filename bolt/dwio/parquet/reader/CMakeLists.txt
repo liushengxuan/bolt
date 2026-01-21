@@ -52,6 +52,7 @@ find_package(Arrow CONFIG REQUIRED)
 target_link_libraries(
   bolt_dwio_native_parquet_reader
   bolt_dwio_parquet_thrift
+  bolt_dwio_parquet_decryption
   bolt_type
   bolt_dwio_common
   bolt_type

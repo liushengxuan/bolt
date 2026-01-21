@@ -30,10 +30,14 @@
 
 #pragma once
 
+#include <boost/process/detail/posix/executor.hpp>
+
 #include <limits>
 #include <unordered_set>
 
 #include <folly/Executor.h>
+#include <parquet/encryption/crypto_factory.h>
+#include <parquet/encryption/encryption.h>
 #include "bolt/common/base/SpillConfig.h"
 #include "bolt/common/compression/Compression.h"
 #include "bolt/common/config/Config.h"
@@ -46,6 +50,7 @@
 #include "bolt/dwio/common/InputStream.h"
 #include "bolt/dwio/common/ScanSpec.h"
 #include "bolt/dwio/common/encryption/Encryption.h"
+
 namespace bytedance::bolt::dwio::common {
 
 enum class FileFormat {
@@ -546,6 +551,9 @@ class ReaderOptions : public io::ReaderOptions {
   bool useColumnNamesForColumnMapping_{false};
   bool useNestedColumnNamesForColumnMapping_{false};
   std::shared_ptr<folly::Executor> ioExecutor_;
+  std::shared_ptr<::parquet::FileDecryptionProperties::Builder>
+      fileDecryptionPropertiesBuilder_{nullptr};
+  std::shared_ptr<::parquet::encryption::CryptoFactory> cryptoFactory_;
 
  public:
   static constexpr uint64_t kDefaultFooterEstimatedSize = 1024 * 1024; // 1MB
@@ -556,7 +564,9 @@ class ReaderOptions : public io::ReaderOptions {
       : io::ReaderOptions(pool),
         tailLocation(std::numeric_limits<uint64_t>::max()),
         fileFormat(FileFormat::UNKNOWN),
-        fileSchema(nullptr) {}
+        fileSchema(nullptr) {
+    cryptoFactory_ = std::make_shared<::parquet::encryption::CryptoFactory>();
+  }
 
   ReaderOptions& operator=(const ReaderOptions& other) {
     io::ReaderOptions::operator=(other);
@@ -573,6 +583,8 @@ class ReaderOptions : public io::ReaderOptions {
     filePreloadThreshold = other.filePreloadThreshold;
     fileColumnNamesReadAsLowerCase = other.fileColumnNamesReadAsLowerCase;
     useColumnNamesForColumnMapping_ = other.useColumnNamesForColumnMapping_;
+    fileDecryptionPropertiesBuilder_ = other.fileDecryptionPropertiesBuilder_;
+    cryptoFactory_ = other.cryptoFactory_;
     return *this;
   }
 
@@ -586,8 +598,10 @@ class ReaderOptions : public io::ReaderOptions {
         footerEstimatedSize(other.footerEstimatedSize),
         filePreloadThreshold(other.filePreloadThreshold),
         fileColumnNamesReadAsLowerCase(other.fileColumnNamesReadAsLowerCase),
-        useColumnNamesForColumnMapping_(other.useColumnNamesForColumnMapping_) {
-  }
+        useColumnNamesForColumnMapping_(other.useColumnNamesForColumnMapping_),
+        fileDecryptionPropertiesBuilder_(
+            other.fileDecryptionPropertiesBuilder_),
+        cryptoFactory_(other.cryptoFactory_) {}
 
   /**
    * Set the format of the file, such as "rc" or "dwrf".  The
@@ -662,6 +676,35 @@ class ReaderOptions : public io::ReaderOptions {
     return *this;
   }
 
+  // Set default Footer Key for Parquet Decryption. If the Footer Key is empty,
+  // the decryptor would invoke the key retriever callback functions to get the
+  // Footer Key.
+  ReaderOptions& setFooterDecryptionKey(std::string footerKey) {
+    // fileDecryptionPropertiesBuilder_ is initiated when footer key or column
+    // keys are set directly.
+    if (fileDecryptionPropertiesBuilder_ == nullptr) {
+      fileDecryptionPropertiesBuilder_ =
+          std::make_shared<::parquet::FileDecryptionProperties::Builder>();
+    }
+    fileDecryptionPropertiesBuilder_->footer_key(footerKey);
+    return *this;
+  }
+
+  // Set default Column Keys for Parquet Decryption. If the Column Keys are
+  // empty, the decryptor would invoke the key retriever callback functions
+  // to get the Column Keys.
+  ReaderOptions& setFooterColumnKeys(
+      ::parquet::ColumnPathToDecryptionPropertiesMap& columnsKeys) {
+    // fileDecryptionPropertiesBuilder_ is initiated when footer key or column
+    // keys are set directly.
+    if (fileDecryptionPropertiesBuilder_ == nullptr) {
+      fileDecryptionPropertiesBuilder_ =
+          std::make_shared<::parquet::FileDecryptionProperties::Builder>();
+    }
+    fileDecryptionPropertiesBuilder_->column_keys(columnsKeys);
+    return *this;
+  }
+
   /**
    * Get the desired tail location.
    * @return if not set, return the maximum long.
@@ -703,6 +746,16 @@ class ReaderOptions : public io::ReaderOptions {
 
   uint64_t getFilePreloadThreshold() const {
     return filePreloadThreshold;
+  }
+
+  std::shared_ptr<::parquet::FileDecryptionProperties::Builder>
+  getFileDecryptionPropertiesBuilder() const {
+    return fileDecryptionPropertiesBuilder_;
+  }
+
+  const std::shared_ptr<::parquet::encryption::CryptoFactory> getCryptoFactory()
+      const {
+    return cryptoFactory_;
   }
 
   const std::shared_ptr<folly::Executor>& getIOExecutor() const {

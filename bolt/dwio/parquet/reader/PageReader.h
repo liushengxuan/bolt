@@ -35,6 +35,8 @@
 #include "bolt/dwio/common/DirectDecoder.h"
 #include "bolt/dwio/common/SelectiveColumnReader.h"
 #include "bolt/dwio/common/compression/Compression.h"
+#include "bolt/dwio/parquet/decryption/Decryptor.h"
+#include "bolt/dwio/parquet/decryption/ParquetFileDecryptor.h"
 #include "bolt/dwio/parquet/reader/BooleanDecoder.h"
 #include "bolt/dwio/parquet/reader/DeltaBpDecoder.h"
 #include "bolt/dwio/parquet/reader/ParquetTypeWithId.h"
@@ -42,7 +44,31 @@
 #include "bolt/dwio/parquet/reader/StringDecoder.h"
 
 #include <arrow/util/rle_encoding.h>
+
 namespace bytedance::bolt::parquet {
+constexpr int16_t kNonPageOrdinal = static_cast<int16_t>(-1);
+constexpr uint32_t kDefaultMaxPageHeaderSize = 16 * 1024 * 1024;
+
+struct CryptoContext {
+  CryptoContext(
+      bool startWithDictionaryPage,
+      int16_t rowGroupOrdinal,
+      int16_t columnOrdinal,
+      std::shared_ptr<decryption::Decryptor> meta,
+      std::shared_ptr<decryption::Decryptor> data)
+      : start_decrypt_with_dictionary_page(startWithDictionaryPage),
+        row_group_ordinal(rowGroupOrdinal),
+        column_ordinal(columnOrdinal),
+        meta_decryptor(std::move(meta)),
+        data_decryptor(std::move(data)) {}
+  CryptoContext() = default;
+
+  bool start_decrypt_with_dictionary_page = false;
+  int16_t row_group_ordinal = -1;
+  int16_t column_ordinal = -1;
+  std::shared_ptr<decryption::Decryptor> meta_decryptor;
+  std::shared_ptr<decryption::Decryptor> data_decryptor;
+};
 
 /// Manages access to pages inside a ColumnChunk. Interprets page headers and
 /// encodings and presents the combination of pages and encoded values as a
@@ -69,6 +95,7 @@ class PageReader {
         nullConcatenation_(pool_),
         statis_(statis) {
     type_->makeLevelInfo(leafInfo_);
+    page_ordinal_ = 0;
   }
 
   // This PageReader constructor is for unit test only.
@@ -86,7 +113,9 @@ class PageReader {
         chunkSize_(chunkSize),
         definitionLevels_(&pool_),
         repetitionLevels_(&pool_),
-        nullConcatenation_(pool_) {}
+        nullConcatenation_(pool_) {
+    page_ordinal_ = 0;
+  }
 
   /// Advances 'numRows' top level rows.
   void skip(int64_t numRows);
@@ -155,6 +184,47 @@ class PageReader {
   // Parses the PageHeader at 'inputStream_', and move the bufferStart_ and
   // bufferEnd_ to the corresponding positions.
   thrift::PageHeader readPageHeader();
+
+  CryptoContext& getCryptoContext() {
+    return cryptoCtx_;
+  }
+
+  void initDecryption() {
+    if (cryptoCtx_.data_decryptor != nullptr) {
+      data_page_aad_ = arrow::encryption::CreateModuleAad(
+          cryptoCtx_.data_decryptor->fileAad(),
+          arrow::encryption::kDataPage,
+          cryptoCtx_.row_group_ordinal,
+          cryptoCtx_.column_ordinal,
+          kNonPageOrdinal);
+    }
+    if (cryptoCtx_.meta_decryptor != nullptr) {
+      data_page_header_aad_ = arrow::encryption::CreateModuleAad(
+          cryptoCtx_.meta_decryptor->fileAad(),
+          arrow::encryption::kDataPageHeader,
+          cryptoCtx_.row_group_ordinal,
+          cryptoCtx_.column_ordinal,
+          kNonPageOrdinal);
+    }
+  }
+
+  void updateDecryption(
+      const std::shared_ptr<decryption::Decryptor>& decryptor,
+      int8_t module_type,
+      std::string* page_aad) {
+    if (cryptoCtx_.start_decrypt_with_dictionary_page) {
+      std::string aad = arrow::encryption::CreateModuleAad(
+          decryptor->fileAad(),
+          module_type,
+          cryptoCtx_.row_group_ordinal,
+          cryptoCtx_.column_ordinal,
+          kNonPageOrdinal);
+      decryptor->updateAad(aad);
+    } else {
+      arrow::encryption::QuickUpdatePageAad(page_ordinal_, page_aad);
+      decryptor->updateAad(*page_aad);
+    }
+  }
 
   void prepareDictionary(const thrift::PageHeader& pageHeader);
 
@@ -537,6 +607,14 @@ class PageReader {
   std::unique_ptr<DeltaBpDecoder> deltaBpDecoder_;
   bool decoderSet_{false};
   // Add decoders for other encodings here.
+
+  // decryptor
+  void decryptPageData(int32_t& compressedLen);
+  CryptoContext cryptoCtx_;
+  std::string data_page_aad_;
+  std::string data_page_header_aad_;
+  BufferPtr decryption_buffer_;
+  int32_t page_ordinal_;
 
   // preload undecoded RepDefs
   std::list<raw_vector<char>> preloadedRepDefs_;

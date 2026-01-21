@@ -31,6 +31,7 @@
 #include "bolt/dwio/parquet/reader/ParquetReader.h"
 #include <type/HugeInt.h>
 #include <type/Type.h>
+#include "bolt/dwio/parquet/decryption/KmsClient.h"
 #include "bolt/dwio/parquet/tests/ParquetTestBase.h"
 #include "bolt/expression/ExprToSubfieldFilter.h"
 #include "bolt/vector/BaseVector.h"
@@ -1147,6 +1148,39 @@ TEST_F(ParquetReaderTest, arrayWithEmptyEntry) {
   rowReader->next(7, result);
   assertEqualVectorPart(expected, result, 0);
 }
+
+TEST_F(ParquetReaderTest, readEncryptedFileWithKms) {
+  auto rowType = ROW({"id", "name", "salary"}, {BIGINT(), VARCHAR(), BIGINT()});
+
+  dwio::common::ReaderOptions readerOpts{leafPool_.get()};
+
+  std::string encryptionData = getExampleFilePath("encrypted_sample.parquet");
+
+  auto reader = createReader(encryptionData, readerOpts);
+  RowReaderOptions rowReaderOpts;
+  rowReaderOpts.setScanSpec(makeScanSpec(rowType));
+  auto rowReader = reader->createRowReader(rowReaderOpts);
+
+  // Check the number of rows
+  auto numRows = reader->numberOfRows();
+  ASSERT_TRUE(numRows.has_value());
+  EXPECT_EQ(numRows.value(), 3);
+
+  // Check the schema
+  auto type = reader->typeWithId();
+  EXPECT_EQ(type->size(), rowType->size());
+  EXPECT_EQ(type->type()->kind(), TypeKind::ROW);
+
+  // Read a single batch and verify decrypted values
+  auto result = BaseVector::create(rowType, 3, leafPool_.get());
+  auto rowsRead = rowReader->next(3, result);
+  EXPECT_EQ(rowsRead, 3);
+  EXPECT_EQ(result->size(), 3);
+
+  auto data = result->as<RowVector>()->childAt(0)->asFlatVector<int64_t>();
+  EXPECT_EQ(data->valueAt(0), 1);
+}
+
 TEST_F(ParquetReaderTest, readBinaryAsStringFromNation) {
   const std::string filename("nation.parquet");
   const std::string sample(getExampleFilePath(filename));
