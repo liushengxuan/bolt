@@ -32,6 +32,7 @@ AesDecryptor::AesDecryptor(
     memory::MemoryPool* pool,
     bool containsLength)
     : Decryptor(key, fileAad, aad, pool) {
+  std::cout<<"AesDecryptor.cpp: "<<algId<<std::endl;
   if (ParquetCipher::AES_GCM_V1 != algId &&
       ParquetCipher::AES_GCM_CTR_V1 != algId) {
     BOLT_FAIL("Crypto algorithm {} is not supported", algId);

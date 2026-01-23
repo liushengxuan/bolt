@@ -1051,6 +1051,7 @@ uint32_t ReaderBase::ParseMetaDataOfEncryptedFileWithEncryptedFooter(
   ::parquet::EncryptionAlgorithm algo = FromThrift(encryption);
 
   std::string fileAAD = HandleAadPrefix(fileDecryptionProperties_, algo);
+  std::cout<<"ParquetReader.cpp: "<<algo.algorithm<<std::endl;
   fileDecryptor_ = std::make_shared<decryption::ParquetFileDecryptor>(
       fileDecryptionProperties_.get(),
       fileAAD,

@@ -32,6 +32,8 @@ ParquetFileDecryptor::ParquetFileDecryptor(
       algorithm_(algorithm),
       footerKeyMetadata_(footerKeyMetadata),
       pool_(pool) {
+
+  std::cout<<"ParquetFileDecryptor.cpp: "<<algorithm<<std::endl;
   if (properties_->is_utilized()) {
     BOLT_FAIL(
         "Re-using decryption properties with explicit keys for another file");
